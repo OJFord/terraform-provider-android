@@ -19,6 +19,11 @@ func resourceAndroidApk() *schema.Resource {
 		Delete: resourceAndroidApkDelete,
 
 		Schema: map[string]*schema.Schema{
+			"adb_serial": {
+				Description: "Serial number (`get-serialno`) of the device - e.g. <IP>:<PORT> for TCP/IP devices",
+				Required:    true,
+				Type:        schema.TypeString,
+			},
 			"installed": &schema.Schema{
 				Computed: true,
 				Type:     schema.TypeBool,
@@ -61,14 +66,14 @@ func updateCachedApk(pkg string) (string, error) {
 	return fmt.Sprint(apk_dir, pkg, ".apk"), nil
 }
 
-func installApk(pkg string) error {
+func installApk(serial string, pkg string) error {
 	file, err := updateCachedApk(pkg)
 	if err != nil {
 		return err
 	}
 
 	log.Println("Installing", pkg)
-	cmd := exec.Command("adb", "install", "-r", file)
+	cmd := exec.Command("adb", "-s", serial, "install", "-r", file)
 	stdout, err := cmd.Output()
 	log.Println(string(stdout))
 	if err != nil {
@@ -83,8 +88,8 @@ func installApk(pkg string) error {
 	return nil
 }
 
-func uninstallApk(pkg string) error {
-	cmd := exec.Command("adb", "uninstall", pkg)
+func uninstallApk(serial string, pkg string) error {
+	cmd := exec.Command("adb", "-s", serial, "uninstall", pkg)
 	stdout, err := cmd.Output()
 	if err != nil {
 		return err
@@ -97,7 +102,7 @@ func uninstallApk(pkg string) error {
 }
 
 func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
-	err := installApk(d.Get("name").(string))
+	err := installApk(d.Get("adb_serial").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
@@ -154,7 +159,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
-	err := installApk(d.Get("name").(string))
+	err := installApk(d.Get("adb_serial").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
@@ -163,7 +168,7 @@ func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkDelete(d *schema.ResourceData, m interface{}) error {
-	err := uninstallApk(d.Get("name").(string))
+	err := uninstallApk(d.Get("adb_serial").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}

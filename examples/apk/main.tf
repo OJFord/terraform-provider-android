@@ -7,9 +7,9 @@ terraform {
 }
 
 provider "android" {
-  adb_serial = "192.168.1.217:5555"
 }
 
 resource "android_apk" "fastmail_example" {
-  name = "com.fastmail.app"
+  adb_serial = var.adb_serial
+  name       = "com.fastmail.app"
 }

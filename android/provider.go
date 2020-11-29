@@ -2,18 +2,12 @@ package android
 
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"os"
+	"os/exec"
 )
 
 func Provider() *schema.Provider {
 	return &schema.Provider{
-		Schema: map[string]*schema.Schema{
-			"adb_serial": {
-				Description: "Serial number (`get-serialno`) of the device - e.g. <IP>:<PORT> for TCP/IP devices",
-				Required:    true,
-				Type:        schema.TypeString,
-			},
-		},
+		Schema: map[string]*schema.Schema{},
 		ResourcesMap: map[string]*schema.Resource{
 			"android_apk": resourceAndroidApk(),
 		},
@@ -22,7 +16,8 @@ func Provider() *schema.Provider {
 }
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
-	err := os.Setenv("ANDROID_SERIAL", d.Get("adb_serial").(string))
+	cmd := exec.Command("adb", "start-server")
+	_, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
