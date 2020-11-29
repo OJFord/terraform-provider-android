@@ -25,25 +25,47 @@ func resourceAndroidApk() *schema.Resource {
 				Required:    true,
 				Type:        schema.TypeString,
 			},
-			"installed_version": &schema.Schema{
-				Computed: true,
-				Type:     schema.TypeInt,
-			},
-			"installed_version_name": &schema.Schema{
-				Computed: true,
-				Type:     schema.TypeString,
-			},
 			"name": &schema.Schema{
 				ForceNew: true,
 				Required: true,
 				Type:     schema.TypeString,
 			},
-			"target_version": &schema.Schema{
+			"version": &schema.Schema{
 				Computed: true,
 				Type:     schema.TypeInt,
 			},
+			"version_name": &schema.Schema{
+				Computed: true,
+				Type:     schema.TypeString,
+			},
 		},
+
+		CustomizeDiff: customiseDiff,
 	}
+}
+
+func customiseDiff(diff *schema.ResourceDiff, _ interface{}) error {
+	v, err := getLatestVersion(diff.Get("name").(string))
+	if err != nil {
+		return err
+	}
+
+	err = diff.SetNew("version", v)
+	if err != nil {
+		return err
+	}
+
+	vn, err := getLatestVersionName(diff.Get("name").(string))
+	if err != nil {
+		return err
+	}
+
+	err = diff.SetNew("version_name", vn)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func updateCachedApk(pkg string) (string, error) {
@@ -70,6 +92,52 @@ func updateCachedApk(pkg string) (string, error) {
 	log.Println(pkg, "cached")
 
 	return fmt.Sprint(apk_dir, "/", pkg, ".apk"), nil
+}
+
+func getLatestVersion(pkg string) (int, error) {
+	file, err := updateCachedApk(pkg)
+	if err != nil {
+		return -1, err
+	}
+
+	cmd := exec.Command("aapt", "dump", "badging", file)
+	stdout, err := cmd.Output()
+	if err != nil {
+		return -1, err
+	}
+
+	re_vcode := regexp.MustCompile(`versionCode='(\d+)'`)
+	matches := re_vcode.FindStringSubmatch(string(stdout))
+	if len(matches) == 0 {
+		return -1, fmt.Errorf("Failed to find %s's versionCode", pkg)
+	}
+	v, err := strconv.ParseInt(string(matches[1]), 10, 32)
+	if err != nil {
+		return -1, err
+	}
+
+	return int(v), nil
+}
+
+func getLatestVersionName(pkg string) (string, error) {
+	file, err := updateCachedApk(pkg)
+	if err != nil {
+		return "", err
+	}
+
+	cmd := exec.Command("aapt", "dump", "badging", file)
+	stdout, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	re_vname := regexp.MustCompile(`versionName='([a-zA-Z0-9\.]+)'`)
+	matches := re_vname.FindStringSubmatch(string(stdout))
+	if len(matches) == 0 {
+		return "", fmt.Errorf("Failed to find %s's versionName", pkg)
+	}
+
+	return string(matches[1]), nil
 }
 
 func installApk(serial string, pkg string) error {
@@ -136,42 +204,20 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 			return err
 		}
 
-		d.Set("installed_version", v-1)
+		d.Set("version", v)
 		d.SetId(fmt.Sprint(d.Get("adb_serial").(string), "-", pkg, "-", string(matches[1])))
 	} else {
-		d.Set("installed_version", -1)
+		d.Set("version", -1)
 		d.SetId("")
 	}
 
 	re_vname := regexp.MustCompile(`versionName=([a-zA-Z0-9\.]+)`)
 	matches = re_vname.FindStringSubmatch(string(stdout))
 	if len(matches) > 0 {
-		d.Set("installed_version_name", string(matches[1]))
+		d.Set("version_name", string(matches[1]))
 	} else {
-		d.Set("installed_version_name", -1)
+		d.Set("version_name", -1)
 	}
-
-	file, err := updateCachedApk(d.Get("name").(string))
-	if err != nil {
-		return err
-	}
-
-	cmd = exec.Command("aapt", "dump", "badging", file)
-	stdout, err = cmd.Output()
-	if err != nil {
-		return err
-	}
-
-	re_vcode = regexp.MustCompile(`versionCode='(\d+)'`)
-	matches = re_vcode.FindStringSubmatch(string(stdout))
-	if len(matches) == 0 {
-		return fmt.Errorf("Failed to find the acquired APK's versionCode")
-	}
-	v, err := strconv.ParseInt(string(matches[1]), 10, 32)
-	if err != nil {
-		return err
-	}
-	d.Set("target_version", v)
 
 	return nil
 }
