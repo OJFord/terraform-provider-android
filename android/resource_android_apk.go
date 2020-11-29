@@ -30,7 +30,8 @@ func resourceAndroidApk() *schema.Resource {
 				Type:     schema.TypeString,
 			},
 			"name": &schema.Schema{
-				Type: schema.TypeString,
+				Required: true,
+				Type:     schema.TypeString,
 			},
 			"target_version": &schema.Schema{
 				Computed: true,
