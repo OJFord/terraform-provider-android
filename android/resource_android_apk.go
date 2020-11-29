@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/adrg/xdg"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -47,11 +49,14 @@ func updateCachedApk(pkg string) (string, error) {
 		return "", err
 	}
 
+	log.Println("Downloading", pkg)
 	cmd := exec.Command("python", "-m", "gplaycli", fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg))
-	_, err = cmd.Output()
+	stdout, err := cmd.Output()
+	log.Println(string(stdout))
 	if err != nil {
 		return "", err
 	}
+	log.Println(pkg, "downloaded")
 
 	return fmt.Sprint(apk_dir, pkg, ".apk"), nil
 }
@@ -62,9 +67,13 @@ func installApk(pkg string) error {
 		return err
 	}
 
+	log.Println("Installing", pkg)
 	cmd := exec.Command("adb", "install", "-r", file)
 	stdout, err := cmd.Output()
+	log.Println(string(stdout))
 	if err != nil {
+		log.Fatal(err)
+		log.Fatal(string(err.(*exec.ExitError).Stderr))
 		return err
 	}
 	if !strings.Contains(string(stdout), "Success") {
