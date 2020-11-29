@@ -71,7 +71,7 @@ func updateCachedApk(pkg string) (string, error) {
 	}
 	log.Println(pkg, "cached")
 
-	return fmt.Sprint(apk_dir, pkg, ".apk"), nil
+	return fmt.Sprint(apk_dir, "/", pkg, ".apk"), nil
 }
 
 func installApk(serial string, pkg string) error {
@@ -82,15 +82,14 @@ func installApk(serial string, pkg string) error {
 
 	log.Println("Installing", pkg)
 	cmd := exec.Command("adb", "-s", serial, "install", "-r", file)
-	stdout, err := cmd.Output()
-	log.Println(string(stdout))
+	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
 	if err != nil {
 		log.Fatal(err)
-		log.Fatal(string(err.(*exec.ExitError).Stderr))
 		return err
 	}
-	if !strings.Contains(string(stdout), "Success") {
-		return fmt.Errorf(string(stdout))
+	if !strings.Contains(string(stdouterr), "Success") {
+		return fmt.Errorf(string(stdouterr))
 	}
 
 	return nil
@@ -98,12 +97,12 @@ func installApk(serial string, pkg string) error {
 
 func uninstallApk(serial string, pkg string) error {
 	cmd := exec.Command("adb", "-s", serial, "uninstall", pkg)
-	stdout, err := cmd.Output()
+	stdouterr, err := cmd.CombinedOutput()
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(string(stdout), "Success") {
-		return fmt.Errorf(string(stdout))
+	if !strings.Contains(string(stdouterr), "Success") {
+		return fmt.Errorf(string(stdouterr))
 	}
 
 	return nil
