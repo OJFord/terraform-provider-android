@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -131,15 +132,22 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 	re_vcode := regexp.MustCompile(`versionCode=(\d+)`)
 	matches := re_vcode.FindStringSubmatch(string(stdout))
 	if len(matches) > 0 {
-		d.Set("installed_version", matches[1])
+		v, err := strconv.ParseInt(string(matches[1]), 10, 32)
+		if err != nil {
+			return err
+		}
+
+		d.Set("installed_version", v-1)
+		d.SetId(fmt.Sprint(d.Get("adb_serial").(string), "-", pkg, "-", string(matches[1])))
 	} else {
 		d.Set("installed_version", -1)
+		d.SetId("")
 	}
 
 	re_vname := regexp.MustCompile(`versionName=([a-zA-Z0-9\.]+)`)
 	matches = re_vname.FindStringSubmatch(string(stdout))
 	if len(matches) > 0 {
-		d.Set("installed_version_name", matches[1])
+		d.Set("installed_version_name", string(matches[1]))
 	} else {
 		d.Set("installed_version_name", -1)
 	}
@@ -160,7 +168,11 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 	if len(matches) == 0 {
 		return fmt.Errorf("Failed to find the acquired APK's versionCode")
 	}
-	d.Set("target_version", matches[1])
+	v, err := strconv.ParseInt(string(matches[1]), 10, 32)
+	if err != nil {
+		return err
+	}
+	d.Set("target_version", v)
 
 	return nil
 }
