@@ -25,10 +25,6 @@ func resourceAndroidApk() *schema.Resource {
 				Required:    true,
 				Type:        schema.TypeString,
 			},
-			"installed": &schema.Schema{
-				Computed: true,
-				Type:     schema.TypeBool,
-			},
 			"installed_version": &schema.Schema{
 				Computed: true,
 				Type:     schema.TypeInt,
@@ -128,7 +124,9 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	d.Set("installed", !strings.Contains(string(stdout), fmt.Sprint("Unable to find package: ", pkg)))
+	if !strings.Contains(string(stdout), fmt.Sprint("Unable to find package:", pkg)) {
+		d.SetId("")
+	}
 
 	re_vcode := regexp.MustCompile(`versionCode=(\d+)`)
 	matches := re_vcode.FindStringSubmatch(string(stdout))
