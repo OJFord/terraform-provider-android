@@ -38,6 +38,7 @@ func resourceAndroidApk() *schema.Resource {
 				Type:     schema.TypeString,
 			},
 			"name": &schema.Schema{
+				ForceNew: true,
 				Required: true,
 				Type:     schema.TypeString,
 			},
