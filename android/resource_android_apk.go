@@ -190,7 +190,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 	pkg := d.Get("name").(string)
 	serial := d.Get("adb_serial").(string)
 
-	cmd := exec.Command("adb", "shell", "dumpsys", "package", pkg)
+	cmd := exec.Command("adb", "-s", serial, "shell", "dumpsys", "package", pkg)
 	stdout, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("Failed to read %s from %s", pkg, serial)
