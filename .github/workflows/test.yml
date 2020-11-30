@@ -1,4 +1,4 @@
-name: Go
+name: Check
 
 on:
   push: {}
@@ -6,8 +6,8 @@ on:
 
 jobs:
 
-  build:
-    name: Build
+  go:
+    name: Go
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.x
@@ -39,3 +39,20 @@ jobs:
             >&2 echo "$fmtdiff"
             exit 1
           fi
+
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Terraformat
+        run: terraform fmt -recursive examples
