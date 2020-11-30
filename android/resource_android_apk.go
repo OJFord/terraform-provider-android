@@ -90,7 +90,7 @@ func updateCachedApk(pkg string) (string, error) {
 		return "", err
 	}
 	if strings.Contains(string(stdouterr), "[ERROR]") {
-		return "", fmt.Errorf(string(stdouterr))
+		return "", fmt.Errorf("Failed to download or update %s", pkg)
 	}
 	log.Println(pkg, "cached")
 
@@ -158,7 +158,7 @@ func installApk(serial string, pkg string) error {
 		return err
 	}
 	if !strings.Contains(string(stdouterr), "Success") {
-		return fmt.Errorf(string(stdouterr))
+		return fmt.Errorf("Failed to install %s to %s", pkg, serial)
 	}
 
 	return nil
@@ -171,7 +171,7 @@ func uninstallApk(serial string, pkg string) error {
 		return err
 	}
 	if !strings.Contains(string(stdouterr), "Success") {
-		return fmt.Errorf(string(stdouterr))
+		return fmt.Errorf("Failed to uninstall %s from %s", pkg, serial)
 	}
 
 	return nil
@@ -188,11 +188,12 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 
 func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 	pkg := d.Get("name").(string)
+	serial := d.Get("adb_serial").(string)
 
 	cmd := exec.Command("adb", "shell", "dumpsys", "package", pkg)
 	stdout, err := cmd.Output()
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to read %s from %s", pkg, serial)
 	}
 
 	if !strings.Contains(string(stdout), fmt.Sprint("Unable to find package:", pkg)) {
