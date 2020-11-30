@@ -134,7 +134,7 @@ func getLatestVersionName(pkg string) (string, error) {
 		return "", err
 	}
 
-	re_vname := regexp.MustCompile(`versionName='([a-zA-Z0-9\.]+)'`)
+	re_vname := regexp.MustCompile(`versionName='(.+)'`)
 	matches := re_vname.FindStringSubmatch(string(stdout))
 	if len(matches) == 0 {
 		return "", fmt.Errorf("Failed to find %s's versionName", pkg)
@@ -215,7 +215,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		d.SetId("")
 	}
 
-	re_vname := regexp.MustCompile(`versionName=([a-zA-Z0-9\.]+)`)
+	re_vname := regexp.MustCompile(`versionName=(.+) `)
 	matches = re_vname.FindStringSubmatch(string(stdout))
 	if len(matches) > 0 {
 		d.Set("version_name", string(matches[1]))
