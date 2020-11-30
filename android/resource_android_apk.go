@@ -64,6 +64,11 @@ func customiseDiff(diff *schema.ResourceDiff, _ interface{}) error {
 		return err
 	}
 
+	vold, vnew := diff.GetChange("version")
+	if vold.(int) > vnew.(int) {
+		diff.ForceNew("version")
+	}
+
 	vn, err := getLatestVersionName(pkg, device_codename)
 	if err != nil {
 		return err
@@ -167,11 +172,10 @@ func installApk(serial string, pkg string, device_codename string) error {
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
-		log.Fatal(err)
-		return err
+		return fmt.Errorf("Failed to install %s to %s: %s", pkg, serial, stdouterr)
 	}
 	if !strings.Contains(string(stdouterr), "Success") {
-		return fmt.Errorf("Failed to install %s to %s", pkg, serial)
+		return fmt.Errorf("Failed to install %s to %s: %s", pkg, serial, stdouterr)
 	}
 
 	return nil
