@@ -218,7 +218,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		}
 
 		d.Set("version", v)
-		d.SetId(fmt.Sprint(d.Get("adb_serial").(string), "-", pkg, "-", string(matches[1])))
+		d.SetId(fmt.Sprint(d.Get("adb_serial").(string), "-", pkg))
 	} else {
 		d.Set("version", -1)
 		d.SetId("")
