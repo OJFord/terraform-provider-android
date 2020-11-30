@@ -78,10 +78,10 @@ func updateCachedApk(pkg string) (string, error) {
 	_, err = os.Stat(fmt.Sprint(apk_dir, "/", pkg, ".apk"))
 	if os.IsNotExist(err) {
 		log.Println("Downloading", pkg)
-		cmd = exec.Command("python", "-m", "gplaycli", fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg))
+		cmd = exec.Command("python", "-m", "gplaycli", fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg), "--device-codename=sailfish")
 	} else {
 		log.Println("Updating cached packages")
-		cmd = exec.Command("python", "-m", "gplaycli", fmt.Sprint("--update=", apk_dir), "--yes")
+		cmd = exec.Command("python", "-m", "gplaycli", fmt.Sprint("--update=", apk_dir), "--yes", "--device-codename=sailfish")
 	}
 
 	stdouterr, err := cmd.CombinedOutput()
