@@ -134,7 +134,7 @@ func getLatestVersionName(pkg string) (string, error) {
 		return "", err
 	}
 
-	re_vname := regexp.MustCompile(`versionName='(.+)'`)
+	re_vname := regexp.MustCompile(`versionName='([^']+)'`)
 	matches := re_vname.FindStringSubmatch(string(stdout))
 	if len(matches) == 0 {
 		return "", fmt.Errorf("Failed to find %s's versionName", pkg)
