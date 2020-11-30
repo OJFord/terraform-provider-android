@@ -81,7 +81,7 @@ func updateCachedApk(pkg string) (string, error) {
 		cmd = exec.Command("python", "-m", "gplaycli", fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg))
 	} else {
 		log.Println("Updating cached packages")
-		cmd = exec.Command("python", "-m", "gplaycli", fmt.Sprint("--update=", apk_dir))
+		cmd = exec.Command("python", "-m", "gplaycli", fmt.Sprint("--update=", apk_dir), "--yes")
 	}
 
 	stdouterr, err := cmd.CombinedOutput()
