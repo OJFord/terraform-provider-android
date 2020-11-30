@@ -56,3 +56,14 @@ jobs:
 
       - name: Terraformat
         run: terraform fmt -recursive examples
+
+      - name: Check docs updated
+        run: |
+          curl -L https://github.com/hashicorp/terraform-plugin-docs/releases/download/v0.2.0/tfplugindocs_0.2.0_linux_amd64.zip --output tfplugindocs.zip
+          unzip tfplugindocs.zip tfplugindocs
+          ./tfplugindocs
+          change="$(git diff)"
+          if [ -n "$change" ]; then
+            >&2 echo "$change"
+            exit 1
+          fi

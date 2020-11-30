@@ -32,17 +32,20 @@ func resourceAndroidApk() *schema.Resource {
 				Type:        schema.TypeString,
 			},
 			"name": {
-				ForceNew: true,
-				Required: true,
-				Type:     schema.TypeString,
+				Description: "Qualified name of the package to install, e.g. `com.google.zxing.client.android`",
+				ForceNew:    true,
+				Required:    true,
+				Type:        schema.TypeString,
 			},
 			"version": {
-				Computed: true,
-				Type:     schema.TypeInt,
+				Description: "Monotonically increasing `versionCode` of the package, safe for comparison",
+				Computed:    true,
+				Type:        schema.TypeInt,
 			},
 			"version_name": {
-				Computed: true,
-				Type:     schema.TypeString,
+				Description: "Human-friendly `versionName`, defined by the package author and not guaranteed to increment",
+				Computed:    true,
+				Type:        schema.TypeString,
 			},
 		},
 
