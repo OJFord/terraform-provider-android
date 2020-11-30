@@ -84,10 +84,13 @@ func updateCachedApk(pkg string) (string, error) {
 		cmd = exec.Command("python", "-m", "gplaycli", fmt.Sprint("--update=", apk_dir))
 	}
 
-	stdout, err := cmd.Output()
-	log.Println(string(stdout))
+	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
 	if err != nil {
 		return "", err
+	}
+	if strings.Contains(string(stdouterr), "[ERROR]") {
+		return "", fmt.Errorf(string(stdouterr))
 	}
 	log.Println(pkg, "cached")
 
