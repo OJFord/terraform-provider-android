@@ -25,16 +25,16 @@ func resourceAndroidApk() *schema.Resource {
 				Required:    true,
 				Type:        schema.TypeString,
 			},
-			"name": &schema.Schema{
+			"name": {
 				ForceNew: true,
 				Required: true,
 				Type:     schema.TypeString,
 			},
-			"version": &schema.Schema{
+			"version": {
 				Computed: true,
 				Type:     schema.TypeInt,
 			},
-			"version_name": &schema.Schema{
+			"version_name": {
 				Computed: true,
 				Type:     schema.TypeString,
 			},
