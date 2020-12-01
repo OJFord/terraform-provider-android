@@ -2,12 +2,12 @@
 page_title: "Resource android_apk - terraform-provider-android"
 subcategory: ""
 description: |-
-  
+  Provides an Android APK resource. This can be used to create, read, update, and delete installed APKs (apps) on your Android device.
 ---
 
 # android_apk `Resource`
 
-
+Provides an Android APK resource. This can be used to create, read, update, and delete installed APKs (apps) on your Android device.
 
 ## System dependencies
 

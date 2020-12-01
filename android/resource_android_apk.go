@@ -14,10 +14,11 @@ import (
 
 func resourceAndroidApk() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceAndroidApkCreate,
-		Read:   resourceAndroidApkRead,
-		Update: resourceAndroidApkUpdate,
-		Delete: resourceAndroidApkDelete,
+		Description: "Provides an Android APK resource. This can be used to create, read, update, and delete installed APKs (apps) on your Android device.",
+		Create:      resourceAndroidApkCreate,
+		Read:        resourceAndroidApkRead,
+		Update:      resourceAndroidApkUpdate,
+		Delete:      resourceAndroidApkDelete,
 
 		Schema: map[string]*schema.Schema{
 			"adb_serial": {
