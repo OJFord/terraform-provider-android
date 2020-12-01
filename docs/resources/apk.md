@@ -1,14 +1,31 @@
 ---
-page_title: "android_apk Resource - terraform-provider-android"
+page_title: "Resource android_apk - terraform-provider-android"
 subcategory: ""
 description: |-
   
 ---
 
-# Resource `android_apk`
+# android_apk `Resource`
 
 
 
+## System dependencies
+
+Currently CRUDing an `android_apk` resource depends on the following binaries in `$PATH`:
+- `aapt` (from android-sdk-build-tools)
+- `adb` (from android-tools)
+- `gplaycli` (from python-pip: gplaycli)
+
+It is intended to reduce/eliminate these (cf. [GitHub#4](//github.com/OJFord/terraform-provider-android/issues/4)), but for now, they're required (on the machine running `terraform`).
+
+## Example Usage
+
+```terraform
+resource "android_apk" "example" {
+  adb_serial = "192.168.1.123"
+  name       = "com.example.app"
+}
+```
 
 
 ## Schema
