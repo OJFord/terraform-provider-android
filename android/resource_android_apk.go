@@ -165,8 +165,27 @@ func getLatestVersionName(pkg string, device_codename string) (string, error) {
 	return string(matches[1]), nil
 }
 
+func pingDevice(serial string) error {
+	cmd := exec.Command("adb", "connect", serial)
+	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
+	if err != nil {
+		return fmt.Errorf("Failed to connect to %s", serial)
+	}
+	if !strings.Contains(string(stdouterr), fmt.Sprint("connected to ", serial)) {
+		return fmt.Errorf("Device not connected: %s", stdouterr)
+	}
+
+	return nil
+}
+
 func installApk(serial string, pkg string, device_codename string) error {
 	file, err := updateCachedApk(pkg, device_codename)
+	if err != nil {
+		return err
+	}
+
+	err = pingDevice(serial)
 	if err != nil {
 		return err
 	}
@@ -186,6 +205,11 @@ func installApk(serial string, pkg string, device_codename string) error {
 }
 
 func uninstallApk(serial string, pkg string) error {
+	err := pingDevice(serial)
+	if err != nil {
+		return err
+	}
+
 	cmd := exec.Command("adb", "-s", serial, "uninstall", pkg)
 	stdouterr, err := cmd.CombinedOutput()
 	if err != nil {
@@ -214,6 +238,11 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 	pkg := d.Get("name").(string)
 	serial := d.Get("adb_serial").(string)
+
+	err := pingDevice(serial)
+	if err != nil {
+		return err
+	}
 
 	cmd := exec.Command("adb", "-s", serial, "get-state")
 	stdout, err := cmd.Output()
