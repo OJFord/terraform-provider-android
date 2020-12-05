@@ -109,7 +109,7 @@ func updateCachedApk(pkg string, device_codename string) (string, error) {
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("Failed to download or update %s: %s", pkg, stdouterr)
 	}
 	if strings.Contains(string(stdouterr), "[ERROR]") {
 		return "", fmt.Errorf("Failed to download or update %s", pkg)
@@ -126,13 +126,14 @@ func getLatestVersion(pkg string, device_codename string) (int, error) {
 	}
 
 	cmd := exec.Command("aapt", "dump", "badging", file)
-	stdout, err := cmd.Output()
+	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Failed to read %s versionCode: %s", pkg, stdouterr)
 	}
 
 	re_vcode := regexp.MustCompile(`versionCode='(\d+)'`)
-	matches := re_vcode.FindStringSubmatch(string(stdout))
+	matches := re_vcode.FindStringSubmatch(string(stdouterr))
 	if len(matches) == 0 {
 		return -1, fmt.Errorf("Failed to find %s's versionCode", pkg)
 	}
@@ -151,13 +152,14 @@ func getLatestVersionName(pkg string, device_codename string) (string, error) {
 	}
 
 	cmd := exec.Command("aapt", "dump", "badging", file)
-	stdout, err := cmd.Output()
+	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("Failed to read %s versionName: %s", pkg, stdouterr)
 	}
 
 	re_vname := regexp.MustCompile(`versionName='([^']+)'`)
-	matches := re_vname.FindStringSubmatch(string(stdout))
+	matches := re_vname.FindStringSubmatch(string(stdouterr))
 	if len(matches) == 0 {
 		return "", fmt.Errorf("Failed to find %s's versionName", pkg)
 	}
@@ -212,8 +214,9 @@ func uninstallApk(serial string, pkg string) error {
 
 	cmd := exec.Command("adb", "-s", serial, "uninstall", pkg)
 	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to uninstall %s from %s: %s", pkg, serial, stdouterr)
 	}
 	if !strings.Contains(string(stdouterr), "Success") {
 		return fmt.Errorf("Failed to uninstall %s from %s", pkg, serial)
