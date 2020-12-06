@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/OJFord/terraform-provider-android/android/apk"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"mvdan.cc/fdroidcl/adb"
 )
 
 func resourceAndroidApk() *schema.Resource {
@@ -95,18 +94,30 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 	return nil
 }
 
-func pingDevice(serial string) error {
+func getDevice(serial string) (*adb.Device, error) {
 	cmd := exec.Command("adb", "connect", serial)
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
-		return fmt.Errorf("Failed to connect to %s", serial)
+		return nil, fmt.Errorf("Failed to connect to %s", serial)
 	}
 	if !strings.Contains(string(stdouterr), fmt.Sprint("connected to ", serial)) {
-		return fmt.Errorf("Device not connected: %s", stdouterr)
+		return nil, fmt.Errorf("Device not connected: %s", stdouterr)
 	}
 
-	return nil
+	devices, err := adb.Devices()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get devices: %s", err)
+	}
+
+	for _, device := range devices {
+		log.Println("Found device", device.ID)
+		if device.ID == serial {
+			return device, nil
+		}
+	}
+
+	return nil, fmt.Errorf("Could not find %s", serial)
 }
 
 func installApk(serial string, apk repo.APKAcquirer, device_codename string) error {
@@ -115,39 +126,27 @@ func installApk(serial string, apk repo.APKAcquirer, device_codename string) err
 		return err
 	}
 
-	err = pingDevice(serial)
+	device, err := getDevice(serial)
 	if err != nil {
 		return err
 	}
 
 	log.Println("Installing", apk.Name())
-	cmd := exec.Command("adb", "-s", serial, "install", "-r", file)
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
-	if err != nil {
-		return fmt.Errorf("Failed to install %s to %s: %s", apk.Name(), serial, stdouterr)
-	}
-	if !strings.Contains(string(stdouterr), "Success") {
-		return fmt.Errorf("Failed to install %s to %s: %s", apk.Name(), serial, stdouterr)
+	if err = device.Install(file); err != nil {
+		return fmt.Errorf("Failed to install %s to %s: %s", apk.Name(), device.Model, err)
 	}
 
 	return nil
 }
 
 func uninstallApk(serial string, pkg string) error {
-	err := pingDevice(serial)
+	device, err := getDevice(serial)
 	if err != nil {
 		return err
 	}
 
-	cmd := exec.Command("adb", "-s", serial, "uninstall", pkg)
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
-	if err != nil {
-		return fmt.Errorf("Failed to uninstall %s from %s: %s", pkg, serial, stdouterr)
-	}
-	if !strings.Contains(string(stdouterr), "Success") {
-		return fmt.Errorf("Failed to uninstall %s from %s", pkg, serial)
+	if err = device.Uninstall(pkg); err != nil {
+		return fmt.Errorf("Failed to uninstall %s from %s: %s", pkg, device.Model, err)
 	}
 
 	return nil
@@ -173,12 +172,12 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 	pkg := d.Get("name").(string)
 	serial := d.Get("adb_serial").(string)
 
-	err := pingDevice(serial)
+	device, err := getDevice(serial)
 	if err != nil {
 		return err
 	}
 
-	cmd := exec.Command("adb", "-s", serial, "get-state")
+	cmd := device.AdbCmd("get-state")
 	stdout, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("Failed to read state of %s", serial)
@@ -187,37 +186,27 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Device %s is not ready, in state: %s", serial, stdout)
 	}
 
-	cmd = exec.Command("adb", "-s", serial, "shell", "dumpsys", "package", pkg)
-	stdout, err = cmd.Output()
+	installed, err := device.Installed()
 	if err != nil {
-		return fmt.Errorf("Failed to read %s from %s", pkg, serial)
+		return fmt.Errorf("Failed to read %s's packages", device.Model)
 	}
 
-	if !strings.Contains(string(stdout), fmt.Sprint("Unable to find package:", pkg)) {
-		d.SetId("")
-	}
-
-	re_vcode := regexp.MustCompile(`versionCode=(\d+)`)
-	matches := re_vcode.FindStringSubmatch(string(stdout))
-	if len(matches) > 0 {
-		v, err := strconv.ParseInt(string(matches[1]), 10, 32)
-		if err != nil {
-			return err
+	var pkg_info *adb.Package
+	for installed_pkg, installed_pkg_info := range installed {
+		log.Printf("%s has %s", device.Model, installed_pkg)
+		if installed_pkg == pkg {
+			pkg_info = &installed_pkg_info
 		}
-
-		d.Set("version", v)
-		d.SetId(fmt.Sprint(d.Get("adb_serial").(string), "-", pkg))
-	} else {
-		d.Set("version", -1)
-		d.SetId("")
 	}
 
-	re_vname := regexp.MustCompile(`versionName=(.+) `)
-	matches = re_vname.FindStringSubmatch(string(stdout))
-	if len(matches) > 0 {
-		d.Set("version_name", string(matches[1]))
+	if pkg_info == nil {
+		d.SetId("")
+		d.Set("version", -1)
+		d.Set("version_name", "")
 	} else {
-		d.Set("version_name", -1)
+		d.SetId(fmt.Sprint(d.Get("adb_serial").(string), "-", pkg))
+		d.Set("version", pkg_info.VersCode)
+		d.Set("version_name", pkg_info.VersName)
 	}
 
 	return nil

@@ -2,7 +2,7 @@ package android
 
 import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"os/exec"
+	"mvdan.cc/fdroidcl/adb"
 )
 
 func Provider() *schema.Provider {
@@ -16,10 +16,10 @@ func Provider() *schema.Provider {
 }
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
-	cmd := exec.Command("adb", "start-server")
-	_, err := cmd.Output()
-	if err != nil {
-		return nil, err
+	if !adb.IsServerRunning() {
+		if err := adb.StartServer(); err != nil {
+			return nil, err
+		}
 	}
 
 	return nil, nil
