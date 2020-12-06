@@ -6,7 +6,7 @@ build: fmt
 	go build -o terraform-provider-android
 
 fmt:
-	go fmt
+	gofmt -s -e -w .
 
 examples: build $(EXAMPLES)
 	for d in $(EXAMPLES); do \
