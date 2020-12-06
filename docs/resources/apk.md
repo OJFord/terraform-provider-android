@@ -39,6 +39,7 @@ resource "android_apk" "example" {
 
 - **device_codename** (String, Optional) Device codename to present to Play Store (may affect app availability, or more?)
 - **id** (String, Optional) The ID of this resource.
+- **method** (String, Optional) Method to use for acquiring the APK. (gplaycli, fdroid).
 
 ### Read-only
 

@@ -2,14 +2,14 @@ package android
 
 import (
 	"fmt"
-	"github.com/adrg/xdg"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"log"
-	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/OJFord/terraform-provider-android/android/apk"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func resourceAndroidApk() *schema.Resource {
@@ -29,6 +29,12 @@ func resourceAndroidApk() *schema.Resource {
 			"device_codename": {
 				Default:     "",
 				Description: "Device codename to present to Play Store (may affect app availability, or more?)",
+				Optional:    true,
+				Type:        schema.TypeString,
+			},
+			"method": {
+				Default:     "gplaycli",
+				Description: "Method to use for acquiring the APK. (gplaycli, fdroid).",
 				Optional:    true,
 				Type:        schema.TypeString,
 			},
@@ -54,117 +60,39 @@ func resourceAndroidApk() *schema.Resource {
 	}
 }
 
-func customiseDiff(diff *schema.ResourceDiff, _ interface{}) error {
-	pkg := diff.Get("name").(string)
-	device_codename := diff.Get("device_codename").(string)
-
-	v, err := getLatestVersion(pkg, device_codename)
+func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
+	device_codename := d.Get("device_codename").(string)
+	apk, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
 
-	err = diff.SetNew("version", v)
+	v, err := repo.Version(apk, device_codename)
 	if err != nil {
 		return err
 	}
 
-	vold, vnew := diff.GetChange("version")
+	err = d.SetNew("version", v)
+	if err != nil {
+		return err
+	}
+
+	vold, vnew := d.GetChange("version")
 	if vold.(int) > vnew.(int) {
-		diff.ForceNew("version")
+		d.ForceNew("version")
 	}
 
-	vn, err := getLatestVersionName(pkg, device_codename)
+	vn, err := repo.VersionName(apk, device_codename)
 	if err != nil {
 		return err
 	}
 
-	err = diff.SetNew("version_name", vn)
+	err = d.SetNew("version_name", vn)
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func updateCachedApk(pkg string, device_codename string) (string, error) {
-	apk_dir, err := xdg.CacheFile("terraform-android/")
-	if err != nil {
-		return "", err
-	}
-
-	cmd := exec.Command("python", "-m", "gplaycli")
-	if device_codename != "" {
-		cmd.Args = append(cmd.Args, fmt.Sprint("--device-codename=", device_codename))
-	}
-
-	_, err = os.Stat(fmt.Sprint(apk_dir, "/", pkg, ".apk"))
-	if os.IsNotExist(err) {
-		log.Println("Downloading", pkg)
-		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg))
-	} else {
-		log.Println("Updating cached packages")
-		cmd.Args = append(cmd.Args, fmt.Sprint("--update=", apk_dir), "--yes")
-	}
-
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
-	if err != nil {
-		return "", fmt.Errorf("Failed to download or update %s: %s", pkg, stdouterr)
-	}
-	if strings.Contains(string(stdouterr), "[ERROR]") {
-		return "", fmt.Errorf("Failed to download or update %s", pkg)
-	}
-	log.Println(pkg, "cached")
-
-	return fmt.Sprint(apk_dir, "/", pkg, ".apk"), nil
-}
-
-func getLatestVersion(pkg string, device_codename string) (int, error) {
-	file, err := updateCachedApk(pkg, device_codename)
-	if err != nil {
-		return -1, err
-	}
-
-	cmd := exec.Command("aapt", "dump", "badging", file)
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
-	if err != nil {
-		return -1, fmt.Errorf("Failed to read %s versionCode: %s", pkg, stdouterr)
-	}
-
-	re_vcode := regexp.MustCompile(`versionCode='(\d+)'`)
-	matches := re_vcode.FindStringSubmatch(string(stdouterr))
-	if len(matches) == 0 {
-		return -1, fmt.Errorf("Failed to find %s's versionCode", pkg)
-	}
-	v, err := strconv.ParseInt(string(matches[1]), 10, 32)
-	if err != nil {
-		return -1, err
-	}
-
-	return int(v), nil
-}
-
-func getLatestVersionName(pkg string, device_codename string) (string, error) {
-	file, err := updateCachedApk(pkg, device_codename)
-	if err != nil {
-		return "", err
-	}
-
-	cmd := exec.Command("aapt", "dump", "badging", file)
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
-	if err != nil {
-		return "", fmt.Errorf("Failed to read %s versionName: %s", pkg, stdouterr)
-	}
-
-	re_vname := regexp.MustCompile(`versionName='([^']+)'`)
-	matches := re_vname.FindStringSubmatch(string(stdouterr))
-	if len(matches) == 0 {
-		return "", fmt.Errorf("Failed to find %s's versionName", pkg)
-	}
-
-	return string(matches[1]), nil
 }
 
 func pingDevice(serial string) error {
@@ -181,8 +109,8 @@ func pingDevice(serial string) error {
 	return nil
 }
 
-func installApk(serial string, pkg string, device_codename string) error {
-	file, err := updateCachedApk(pkg, device_codename)
+func installApk(serial string, apk repo.APKAcquirer, device_codename string) error {
+	file, err := apk.UpdateCache(device_codename)
 	if err != nil {
 		return err
 	}
@@ -192,15 +120,15 @@ func installApk(serial string, pkg string, device_codename string) error {
 		return err
 	}
 
-	log.Println("Installing", pkg)
+	log.Println("Installing", apk.Name())
 	cmd := exec.Command("adb", "-s", serial, "install", "-r", file)
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
-		return fmt.Errorf("Failed to install %s to %s: %s", pkg, serial, stdouterr)
+		return fmt.Errorf("Failed to install %s to %s: %s", apk.Name(), serial, stdouterr)
 	}
 	if !strings.Contains(string(stdouterr), "Success") {
-		return fmt.Errorf("Failed to install %s to %s: %s", pkg, serial, stdouterr)
+		return fmt.Errorf("Failed to install %s to %s: %s", apk.Name(), serial, stdouterr)
 	}
 
 	return nil
@@ -227,10 +155,13 @@ func uninstallApk(serial string, pkg string) error {
 
 func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 	device_codename := d.Get("device_codename").(string)
-	pkg := d.Get("name").(string)
 	serial := d.Get("adb_serial").(string)
+	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
+	if err != nil {
+		return err
+	}
 
-	err := installApk(serial, pkg, device_codename)
+	err = installApk(serial, apk_acquirer, device_codename)
 	if err != nil {
 		return err
 	}
@@ -294,10 +225,13 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 
 func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 	device_codename := d.Get("device_codename").(string)
-	pkg := d.Get("name").(string)
 	serial := d.Get("adb_serial").(string)
+	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
+	if err != nil {
+		return err
+	}
 
-	err := installApk(serial, pkg, device_codename)
+	err = installApk(serial, apk_acquirer, device_codename)
 	if err != nil {
 		return err
 	}
