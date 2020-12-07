@@ -60,13 +60,28 @@ func resourceAndroidApk() *schema.Resource {
 }
 
 func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
-	device_codename := d.Get("device_codename").(string)
 	apk, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
 
-	v, err := repo.Version(apk, device_codename)
+	device, err := getDevice(d.Get("adb_serial").(string))
+	if err != nil {
+		return err
+	}
+	log.Printf("Found %s @ %s", device.Device, device.ID)
+
+	device_codename := d.Get("device_codename").(string)
+	if device_codename != "" {
+		device.Device = device_codename
+	}
+
+	_, err = apk.UpdateCache(device)
+	if err != nil {
+		return err
+	}
+
+	v, err := repo.Version(apk)
 	if err != nil {
 		return err
 	}
@@ -81,7 +96,7 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 		d.ForceNew("version")
 	}
 
-	vn, err := repo.VersionName(apk, device_codename)
+	vn, err := repo.VersionName(apk)
 	if err != nil {
 		return err
 	}
@@ -95,6 +110,8 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 }
 
 func getDevice(serial string) (*adb.Device, error) {
+	log.Println("Finding device", serial)
+
 	cmd := exec.Command("adb", "connect", serial)
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
@@ -121,18 +138,13 @@ func getDevice(serial string) (*adb.Device, error) {
 }
 
 func installApk(serial string, apk repo.APKAcquirer, device_codename string) error {
-	file, err := apk.UpdateCache(device_codename)
-	if err != nil {
-		return err
-	}
-
 	device, err := getDevice(serial)
 	if err != nil {
 		return err
 	}
 
 	log.Println("Installing", apk.Name())
-	if err = device.Install(file); err != nil {
+	if err = device.Install(repo.Path(apk)); err != nil {
 		return fmt.Errorf("Failed to install %s to %s: %s", apk.Name(), device.Model, err)
 	}
 

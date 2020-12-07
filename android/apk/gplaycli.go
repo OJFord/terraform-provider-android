@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/adrg/xdg"
 	"log"
+	"mvdan.cc/fdroidcl/adb"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,15 +20,15 @@ func (pkg GPlayCLIPackage) Source() string {
 	return "Google Play Store via gplaycli"
 }
 
-func (pkg GPlayCLIPackage) UpdateCache(device_codename string) (string, error) {
+func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 	apk_dir, err := xdg.CacheFile("terraform-android/")
 	if err != nil {
 		return "", err
 	}
 
 	cmd := exec.Command("python", "-m", "gplaycli")
-	if device_codename != "" {
-		cmd.Args = append(cmd.Args, fmt.Sprint("--device-codename=", device_codename))
+	if device.Device != "" {
+		cmd.Args = append(cmd.Args, fmt.Sprint("--device-codename=", device.Device))
 	}
 
 	_, err = os.Stat(fmt.Sprint(apk_dir, "/", pkg, ".apk"))

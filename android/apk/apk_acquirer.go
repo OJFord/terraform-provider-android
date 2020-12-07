@@ -2,7 +2,9 @@ package repo
 
 import (
 	"fmt"
+	"github.com/adrg/xdg"
 	"log"
+	"mvdan.cc/fdroidcl/adb"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -11,7 +13,7 @@ import (
 type APKAcquirer interface {
 	Name() string
 	Source() string
-	UpdateCache(string) (string, error)
+	UpdateCache(*adb.Device) (string, error)
 }
 
 func Package(method string, pkg string) (APKAcquirer, error) {
@@ -25,13 +27,18 @@ func Package(method string, pkg string) (APKAcquirer, error) {
 	}
 }
 
-func Version(apk APKAcquirer, device_codename string) (int, error) {
-	file, err := apk.UpdateCache(device_codename)
+func Path(apk APKAcquirer) string {
+	path, err := xdg.CacheFile(fmt.Sprint("terraform-android/", apk.Name(), ".apk"))
 	if err != nil {
-		return -1, err
+		log.Fatal(err)
+		panic(err)
 	}
 
-	cmd := exec.Command("aapt", "dump", "badging", file)
+	return path
+}
+
+func Version(apk APKAcquirer) (int, error) {
+	cmd := exec.Command("aapt", "dump", "badging", Path(apk))
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
@@ -51,13 +58,8 @@ func Version(apk APKAcquirer, device_codename string) (int, error) {
 	return int(v), nil
 }
 
-func VersionName(apk APKAcquirer, device_codename string) (string, error) {
-	file, err := apk.UpdateCache(device_codename)
-	if err != nil {
-		return "", err
-	}
-
-	cmd := exec.Command("aapt", "dump", "badging", file)
+func VersionName(apk APKAcquirer) (string, error) {
+	cmd := exec.Command("aapt", "dump", "badging", Path(apk))
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
