@@ -45,11 +45,8 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 	if strings.Contains(string(stdouterr), "No module named gplaycli") {
 		return "", fmt.Errorf("gplaycli is not installed (with this environment's `python`)")
 	}
-	if err != nil {
+	if err != nil || strings.Contains(string(stdouterr), "[ERROR]") {
 		return "", fmt.Errorf("Failed to download or update %s: %s", pkg, stdouterr)
-	}
-	if strings.Contains(string(stdouterr), "[ERROR]") {
-		return "", fmt.Errorf("Failed to download or update %s", pkg)
 	}
 	log.Println(pkg, "cached")
 
