@@ -27,10 +27,6 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 	}
 
 	cmd := exec.Command("python", "-m", "gplaycli")
-	if device.Device != "" {
-		cmd.Args = append(cmd.Args, fmt.Sprint("--device-codename=", device.Device))
-	}
-
 	_, err = os.Stat(fmt.Sprint(apk_dir, "/", pkg, ".apk"))
 	if os.IsNotExist(err) {
 		log.Println("Downloading", pkg)

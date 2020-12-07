@@ -25,12 +25,6 @@ func resourceAndroidApk() *schema.Resource {
 				Required:    true,
 				Type:        schema.TypeString,
 			},
-			"device_codename": {
-				Default:     "",
-				Description: "Device codename to present to Play Store (may affect app availability, or more?)",
-				Optional:    true,
-				Type:        schema.TypeString,
-			},
 			"method": {
 				Default:     "gplaycli",
 				Description: "Method to use for acquiring the APK. (gplaycli, fdroid).",
@@ -70,11 +64,6 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 		return err
 	}
 	log.Printf("Found %s @ %s", device.Device, device.ID)
-
-	device_codename := d.Get("device_codename").(string)
-	if device_codename != "" {
-		device.Device = device_codename
-	}
 
 	_, err = apk.UpdateCache(device)
 	if err != nil {
@@ -137,7 +126,7 @@ func getDevice(serial string) (*adb.Device, error) {
 	return nil, fmt.Errorf("Could not find %s", serial)
 }
 
-func installApk(serial string, apk repo.APKAcquirer, device_codename string) error {
+func installApk(serial string, apk repo.APKAcquirer) error {
 	device, err := getDevice(serial)
 	if err != nil {
 		return err
@@ -165,14 +154,13 @@ func uninstallApk(serial string, pkg string) error {
 }
 
 func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
-	device_codename := d.Get("device_codename").(string)
 	serial := d.Get("adb_serial").(string)
 	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
 
-	err = installApk(serial, apk_acquirer, device_codename)
+	err = installApk(serial, apk_acquirer)
 	if err != nil {
 		return err
 	}
@@ -225,14 +213,13 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
-	device_codename := d.Get("device_codename").(string)
 	serial := d.Get("adb_serial").(string)
 	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
 
-	err = installApk(serial, apk_acquirer, device_codename)
+	err = installApk(serial, apk_acquirer)
 	if err != nil {
 		return err
 	}
