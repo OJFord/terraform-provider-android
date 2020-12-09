@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/OJFord/terraform-provider-android/android/apk"
@@ -263,28 +265,66 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Device %s is not ready, in state: %s", serial, stdout)
 	}
 
-	installed, err := device.Installed()
-	if err != nil {
-		return fmt.Errorf("Failed to read %s's packages", device.Model)
-	}
+	// Seems to be an upstream bug here, they report ABI versions or other incorrect numbers
+	/*
+			installed, err := device.Installed()
+			if err != nil {
+				return fmt.Errorf("Failed to read %s's packages", device.Model)
+			}
+
+			pkg := d.Get("name").(string)
+			var pkg_info *adb.Package
+			for installed_pkg, installed_pkg_info := range installed {
+				log.Printf("%s has %s", device.Model, installed_pkg)
+				if installed_pkg == pkg {
+					pkg_info = &installed_pkg_info
+				}
+			}
+
+			if pkg_info == nil {
+				d.SetId("")
+				d.Set("version", -1)
+				d.Set("version_name", "")
+			} else {
+				d.SetId(fmt.Sprint(serial, "-", pkg))
+
+				d.Set("version", pkg_info.VersCode)
+				d.Set("version_name", pkg_info.VersName)
+		    }
+	*/
 
 	pkg := d.Get("name").(string)
-	var pkg_info *adb.Package
-	for installed_pkg, installed_pkg_info := range installed {
-		log.Printf("%s has %s", device.Model, installed_pkg)
-		if installed_pkg == pkg {
-			pkg_info = &installed_pkg_info
-		}
+	cmd = device.AdbShell("dumpsys", "package", pkg)
+	stdout, err = cmd.Output()
+	if err != nil {
+		return fmt.Errorf("Failed to read %s from %s", pkg, serial)
 	}
 
-	if pkg_info == nil {
+	if !strings.Contains(string(stdout), fmt.Sprint("Unable to find package:", pkg)) {
+		d.SetId("")
+	}
+
+	re_vcode := regexp.MustCompile(`versionCode=(\d+)`)
+	matches := re_vcode.FindStringSubmatch(string(stdout))
+	if len(matches) > 0 {
+		v, err := strconv.ParseInt(string(matches[1]), 10, 32)
+		if err != nil {
+			return err
+		}
+
+		d.SetId(fmt.Sprint(serial, "-", pkg))
+		d.Set("version", v)
+	} else {
 		d.SetId("")
 		d.Set("version", -1)
-		d.Set("version_name", "")
+	}
+
+	re_vname := regexp.MustCompile(`versionName=(.+) `)
+	matches = re_vname.FindStringSubmatch(string(stdout))
+	if len(matches) > 0 {
+		d.Set("version_name", string(matches[1]))
 	} else {
-		d.SetId(fmt.Sprint(serial, "-", pkg))
-		d.Set("version", pkg_info.VersCode)
-		d.Set("version_name", pkg_info.VersName)
+		d.Set("version_name", -1)
 	}
 
 	return nil
