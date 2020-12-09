@@ -20,10 +20,15 @@ func resourceAndroidApk() *schema.Resource {
 		Delete:      resourceAndroidApkDelete,
 
 		Schema: map[string]*schema.Schema{
-			"adb_serial": {
-				Description: "Serial number (`get-serialno`) of the device - e.g. <IP>:<PORT> for TCP/IP devices",
-				Required:    true,
-				Type:        schema.TypeString,
+			"endpoint": {
+				Description: "IP:PORT of the device. Required for ADB over WiFi, omit for USB connections.",
+				Optional:    true,
+				Computed:    true,
+				AtLeastOneOf: []string{
+					"endpoint",
+					"serial",
+				},
+				Type: schema.TypeString,
 			},
 			"method": {
 				Default:     "gplaycli",
@@ -36,6 +41,17 @@ func resourceAndroidApk() *schema.Resource {
 				ForceNew:    true,
 				Required:    true,
 				Type:        schema.TypeString,
+			},
+			"serial": {
+				Description: "Serial number (`getprop ro.serialno`) of the device.",
+				ForceNew:    true,
+				Optional:    true,
+				Computed:    true,
+				AtLeastOneOf: []string{
+					"endpoint",
+					"serial",
+				},
+				Type: schema.TypeString,
 			},
 			"version": {
 				Description: "Monotonically increasing `versionCode` of the package, safe for comparison",
@@ -59,15 +75,25 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 		return err
 	}
 
-	device, err := getDevice(d.Get("adb_serial").(string))
-	if err != nil {
-		return err
-	}
-	log.Printf("Found %s @ %s", device.Device, device.ID)
+	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
 
-	_, err = apk.UpdateCache(device)
+	device, serial, err := findDeviceBySerialOrEndpoint(serial, endpoint)
 	if err != nil {
-		return err
+		log.Println("Failed to find device, not updating cached APK")
+	} else {
+		log.Printf("Found %s ('%s') @ %s", serial, device.Device, device.ID)
+
+		if err = d.SetNew("endpoint", device.ID); err != nil {
+			return err
+		}
+
+		if err = d.SetNew("serial", serial); err != nil {
+			return err
+		}
+
+		if _, err = apk.UpdateCache(device); err != nil {
+			return err
+		}
 	}
 
 	v, err := repo.Version(apk)
@@ -98,16 +124,17 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 	return nil
 }
 
-func getDevice(serial string) (*adb.Device, error) {
-	log.Println("Finding device", serial)
+func connectDevice(endpoint string) (*adb.Device, error) {
+	log.Println("Finding device", endpoint)
 
-	cmd := exec.Command("adb", "connect", serial)
+	cmd := exec.Command("adb", "connect", endpoint)
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
+
 	if err != nil {
-		return nil, fmt.Errorf("Failed to connect to %s", serial)
+		return nil, fmt.Errorf("Failed to connect to %s", endpoint)
 	}
-	if !strings.Contains(string(stdouterr), fmt.Sprint("connected to ", serial)) {
+	if !strings.Contains(string(stdouterr), fmt.Sprint("connected to ", endpoint)) {
 		return nil, fmt.Errorf("Device not connected: %s", stdouterr)
 	}
 
@@ -118,35 +145,78 @@ func getDevice(serial string) (*adb.Device, error) {
 
 	for _, device := range devices {
 		log.Println("Found device", device.ID)
-		if device.ID == serial {
+		if device.ID == endpoint {
 			return device, nil
+		}
+	}
+
+	return nil, fmt.Errorf("Could not find %s", endpoint)
+}
+
+func getDevice(serial string) (*adb.Device, error) {
+	devices, err := adb.Devices()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get devices: %s", err)
+	}
+
+	for _, device := range devices {
+		log.Println("Found device", device.ID)
+		if props, err := device.AdbProps(); props["ro.serialno"] == serial {
+			return device, nil
+		} else {
+			log.Println("[ERROR]", err)
 		}
 	}
 
 	return nil, fmt.Errorf("Could not find %s", serial)
 }
 
-func installApk(serial string, apk repo.APKAcquirer) error {
-	device, err := getDevice(serial)
-	if err != nil {
-		return err
+func findDeviceBySerialOrEndpoint(serial string, endpoint string) (*adb.Device, string, error) {
+	log.Printf("Looking for device %s at %s", serial, endpoint)
+
+	if endpoint != "" {
+		device, err := connectDevice(endpoint)
+		if err != nil {
+			return nil, serial, err
+		}
+
+		props, err := device.AdbProps()
+		if err != nil {
+			return nil, serial, err
+		}
+
+		epSerial := props["ro.serialno"]
+		log.Printf("[INFO] %s is %s", endpoint, epSerial)
+		if serial != "" && epSerial != serial {
+			return nil, serial, fmt.Errorf("Device found at %s is %s, not %s.", endpoint, epSerial, serial)
+		}
+
+		return device, epSerial, nil
 	}
 
+	if serial != "" {
+		device, err := getDevice(serial)
+		if err != nil {
+			return nil, serial, err
+		}
+
+		return device, serial, err
+	}
+
+	return nil, "", fmt.Errorf("No endpoint or serial specified")
+}
+
+func installApk(device *adb.Device, apk repo.APKAcquirer) error {
 	log.Println("Installing", apk.Name())
-	if err = device.Install(repo.Path(apk)); err != nil {
+	if err := device.Install(repo.Path(apk)); err != nil {
 		return fmt.Errorf("Failed to install %s to %s: %s", apk.Name(), device.Model, err)
 	}
 
 	return nil
 }
 
-func uninstallApk(serial string, pkg string) error {
-	device, err := getDevice(serial)
-	if err != nil {
-		return err
-	}
-
-	if err = device.Uninstall(pkg); err != nil {
+func uninstallApk(device *adb.Device, pkg string) error {
+	if err := device.Uninstall(pkg); err != nil {
 		return fmt.Errorf("Failed to uninstall %s from %s: %s", pkg, device.Model, err)
 	}
 
@@ -154,13 +224,19 @@ func uninstallApk(serial string, pkg string) error {
 }
 
 func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
-	serial := d.Get("adb_serial").(string)
+	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+
+	device, _, err := findDeviceBySerialOrEndpoint(serial, endpoint)
+	if err != nil {
+		return err
+	}
+
 	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
 
-	err = installApk(serial, apk_acquirer)
+	err = installApk(device, apk_acquirer)
 	if err != nil {
 		return err
 	}
@@ -169,13 +245,14 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
-	pkg := d.Get("name").(string)
-	serial := d.Get("adb_serial").(string)
+	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
 
-	device, err := getDevice(serial)
+	device, serial, err := findDeviceBySerialOrEndpoint(serial, endpoint)
 	if err != nil {
 		return err
 	}
+
+	d.Set("serial", serial)
 
 	cmd := device.AdbCmd("get-state")
 	stdout, err := cmd.Output()
@@ -191,6 +268,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Failed to read %s's packages", device.Model)
 	}
 
+	pkg := d.Get("name").(string)
 	var pkg_info *adb.Package
 	for installed_pkg, installed_pkg_info := range installed {
 		log.Printf("%s has %s", device.Model, installed_pkg)
@@ -204,7 +282,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		d.Set("version", -1)
 		d.Set("version_name", "")
 	} else {
-		d.SetId(fmt.Sprint(d.Get("adb_serial").(string), "-", pkg))
+		d.SetId(fmt.Sprint(serial, "-", pkg))
 		d.Set("version", pkg_info.VersCode)
 		d.Set("version_name", pkg_info.VersName)
 	}
@@ -213,13 +291,19 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
-	serial := d.Get("adb_serial").(string)
+	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+
+	device, _, err := findDeviceBySerialOrEndpoint(serial, endpoint)
+	if err != nil {
+		return err
+	}
+
 	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
 
-	err = installApk(serial, apk_acquirer)
+	err = installApk(device, apk_acquirer)
 	if err != nil {
 		return err
 	}
@@ -228,7 +312,14 @@ func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkDelete(d *schema.ResourceData, m interface{}) error {
-	err := uninstallApk(d.Get("adb_serial").(string), d.Get("name").(string))
+	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+
+	device, _, err := findDeviceBySerialOrEndpoint(serial, endpoint)
+	if err != nil {
+		return err
+	}
+
+	err = uninstallApk(device, d.Get("name").(string))
 	if err != nil {
 		return err
 	}

@@ -32,13 +32,14 @@ resource "android_apk" "example" {
 
 ### Required
 
-- **adb_serial** (String, Required) Serial number (`get-serialno`) of the device - e.g. <IP>:<PORT> for TCP/IP devices
 - **name** (String, Required) Qualified name of the package to install, e.g. `com.google.zxing.client.android`
 
 ### Optional
 
+- **endpoint** (String, Optional) IP:PORT of the device. Required for ADB over WiFi, omit for USB connections.
 - **id** (String, Optional) The ID of this resource.
 - **method** (String, Optional) Method to use for acquiring the APK. (gplaycli, fdroid).
+- **serial** (String, Optional) Serial number (`getprop ro.serialno`) of the device.
 
 ### Read-only
 
