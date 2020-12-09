@@ -81,21 +81,19 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 
 	device, serial, err := findDeviceBySerialOrEndpoint(serial, endpoint)
 	if err != nil {
-		log.Println("Failed to find device, not updating cached APK")
-	} else {
-		log.Printf("Found %s ('%s') @ %s", serial, device.Device, device.ID)
+		return err
+	}
 
-		if err = d.SetNew("endpoint", device.ID); err != nil {
-			return err
-		}
+	if err = d.SetNew("endpoint", device.ID); err != nil {
+		return err
+	}
 
-		if err = d.SetNew("serial", serial); err != nil {
-			return err
-		}
+	if err = d.SetNew("serial", serial); err != nil {
+		return err
+	}
 
-		if _, err = apk.UpdateCache(device); err != nil {
-			return err
-		}
+	if _, err = apk.UpdateCache(device); err != nil {
+		return err
 	}
 
 	v, err := repo.Version(apk)
