@@ -261,30 +261,15 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Device %s is not ready, in state: %s", serial, stdout)
 	}
 
-	installed, err := device.Installed()
-	if err != nil {
-		return fmt.Errorf("Failed to read %s's packages", device.Model)
-	}
-
 	pkg := d.Get("name").(string)
-	var pkg_info adb.Package
-	for installed_pkg, installed_pkg_info := range installed {
-		log.Printf("%s has %s", device.Model, installed_pkg)
-		if installed_pkg == pkg {
-			log.Println("Found", pkg, "as", installed_pkg, installed_pkg_info)
-			pkg_info = installed_pkg_info
-			goto found
-		}
+	installed, err := device.GetPackage(pkg)
+	if err != nil {
+		return fmt.Errorf("Failed to read package %s from %s", pkg, serial)
 	}
-	d.SetId("")
-	d.Set("version", -1)
-	d.Set("version_name", "")
-	return nil
 
-found:
 	d.SetId(fmt.Sprint(serial, "-", pkg))
-	d.Set("version", pkg_info.VersCode)
-	d.Set("version_name", pkg_info.VersName)
+	d.Set("version", installed.VersCode)
+	d.Set("version_name", installed.VersName)
 	return nil
 }
 
