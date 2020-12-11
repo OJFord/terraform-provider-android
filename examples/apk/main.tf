@@ -10,6 +10,6 @@ provider "android" {
 }
 
 resource "android_apk" "fastmail_example" {
-  adb_serial = var.adb_serial
-  name       = "com.fastmail.app"
+  endpoint = "${var.device_ip}:5555"
+  name     = "com.fastmail.app"
 }

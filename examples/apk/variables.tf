@@ -1,4 +1,4 @@
-variable "adb_serial" {
-  description = "Serial of the device (`adb get-serialno`) to target"
+variable "device_ip" {
+  description = "IP address of the device to target"
   type        = string
 }
