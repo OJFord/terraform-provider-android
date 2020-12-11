@@ -261,15 +261,27 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Device %s is not ready, in state: %s", serial, stdout)
 	}
 
-	pkg := d.Get("name").(string)
-	installed, err := device.GetPackage(pkg)
-	if err != nil {
-		return fmt.Errorf("Failed to read package %s from %s", pkg, serial)
+	var installed map[string]adb.Package
+	installed, ok := m.(Meta).packages[serial]
+	if !ok {
+		var err error
+		if installed, err = device.Installed(); err != nil {
+			return fmt.Errorf("Failed to read packages from %s: %s", serial, err)
+		}
+		m.(Meta).packages[serial] = installed
 	}
 
-	d.SetId(fmt.Sprint(serial, "-", pkg))
-	d.Set("version", installed.VersCode)
-	d.Set("version_name", installed.VersName)
+	pkg := d.Get("name").(string)
+	if ipkg, ok := installed[pkg]; ok {
+		d.SetId(fmt.Sprint(serial, "-", pkg))
+		d.Set("version", ipkg.VersCode)
+		d.Set("version_name", ipkg.VersName)
+		return nil
+	}
+
+	d.SetId("")
+	d.Set("version", -1)
+	d.Set("version_name", "Not installed")
 	return nil
 }
 

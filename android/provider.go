@@ -15,6 +15,10 @@ func Provider() *schema.Provider {
 	}
 }
 
+type Meta struct {
+	packages map[string]map[string]adb.Package
+}
+
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	if !adb.IsServerRunning() {
 		if err := adb.StartServer(); err != nil {
@@ -22,5 +26,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		}
 	}
 
-	return nil, nil
+	return Meta{
+		make(map[string]map[string]adb.Package),
+	}, nil
 }
