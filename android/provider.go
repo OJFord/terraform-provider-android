@@ -15,8 +15,15 @@ func Provider() *schema.Provider {
 	}
 }
 
+type Device struct {
+	*adb.Device
+	endpoint string
+	packages map[string]adb.Package
+	serial   string
+}
+
 type Meta struct {
-	packages map[string]map[string]adb.Package
+	devices map[string]Device
 }
 
 func providerConfigure(d *schema.ResourceData) (interface{}, error) {
@@ -27,6 +34,6 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	}
 
 	return Meta{
-		make(map[string]map[string]adb.Package),
+		make(map[string]Device),
 	}, nil
 }

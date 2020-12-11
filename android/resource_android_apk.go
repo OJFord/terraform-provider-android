@@ -69,7 +69,7 @@ func resourceAndroidApk() *schema.Resource {
 	}
 }
 
-func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
+func customiseDiff(d *schema.ResourceDiff, m interface{}) error {
 	apk, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 
 	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
 
-	device, serial, err := findDeviceBySerialOrEndpoint(serial, endpoint)
+	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func customiseDiff(d *schema.ResourceDiff, _ interface{}) error {
 		return err
 	}
 
-	if _, err = apk.UpdateCache(device); err != nil {
+	if _, err = apk.UpdateCache(device.Device); err != nil {
 		return err
 	}
 
@@ -169,39 +169,62 @@ func getDevice(serial string) (*adb.Device, error) {
 	return nil, fmt.Errorf("Could not find %s", serial)
 }
 
-func findDeviceBySerialOrEndpoint(serial string, endpoint string) (*adb.Device, string, error) {
+func getCachedDevice(endpoint string, m Meta) *Device {
+	if device, ok := m.devices[endpoint]; ok && device.Device != nil {
+		log.Printf("Found cached device %s: %s", endpoint, device.serial)
+		return &device
+	}
+
+	log.Println(endpoint, "not found in cache:", m.devices)
+	return nil
+}
+
+func findDeviceBySerialOrEndpoint(serial string, endpoint string, m Meta) (*Device, error) {
 	log.Printf("Looking for device %s at %s", serial, endpoint)
 
 	if endpoint != "" {
-		device, err := connectDevice(endpoint)
+		if device := getCachedDevice(endpoint, m); device != nil {
+			return device, nil
+		}
+
+		device := Device{}
+
+		var err error
+		device.Device, err = connectDevice(endpoint)
 		if err != nil {
-			return nil, serial, err
+			return nil, err
 		}
 
 		props, err := device.AdbProps()
 		if err != nil {
-			return nil, serial, err
+			return nil, err
 		}
 
-		epSerial := props["ro.serialno"]
-		log.Printf("[INFO] %s is %s", endpoint, epSerial)
-		if serial != "" && epSerial != serial {
-			return nil, serial, fmt.Errorf("Device found at %s is %s, not %s.", endpoint, epSerial, serial)
+		device.serial = props["ro.serialno"]
+		log.Printf("[INFO] %s is %s", endpoint, device.serial)
+		if serial != "" && device.serial != serial {
+			return nil, fmt.Errorf("Device found at %s is %s, not %s.", endpoint, device.serial, serial)
 		}
 
-		return device, epSerial, nil
+		m.devices[endpoint] = device
+		return &device, nil
 	}
 
 	if serial != "" {
-		device, err := getDevice(serial)
-		if err != nil {
-			return nil, serial, err
+		endpoint := fmt.Sprintf("USB-%s", serial)
+		if device := getCachedDevice(endpoint, m); device != nil {
+			return device, nil
 		}
 
-		return device, serial, err
+		device := Device{}
+		var err error
+		device.Device, err = getDevice(serial)
+
+		m.devices[endpoint] = device
+		return &device, err
 	}
 
-	return nil, "", fmt.Errorf("No endpoint or serial specified")
+	return nil, fmt.Errorf("No endpoint or serial specified")
 }
 
 func installApk(device *adb.Device, apk repo.APKAcquirer) error {
@@ -224,7 +247,7 @@ func uninstallApk(device *adb.Device, pkg string) error {
 func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
 
-	device, _, err := findDeviceBySerialOrEndpoint(serial, endpoint)
+	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
@@ -234,7 +257,7 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	err = installApk(device, apk_acquirer)
+	err = installApk(device.Device, apk_acquirer)
 	if err != nil {
 		return err
 	}
@@ -245,7 +268,7 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
 
-	device, serial, err := findDeviceBySerialOrEndpoint(serial, endpoint)
+	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
@@ -262,13 +285,13 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 	}
 
 	var installed map[string]adb.Package
-	installed, ok := m.(Meta).packages[serial]
-	if !ok {
+	if len(device.packages) == 0 {
 		var err error
 		if installed, err = device.Installed(); err != nil {
 			return fmt.Errorf("Failed to read packages from %s: %s", serial, err)
 		}
-		m.(Meta).packages[serial] = installed
+
+		device.packages = installed
 	}
 
 	pkg := d.Get("name").(string)
@@ -288,7 +311,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
 
-	device, _, err := findDeviceBySerialOrEndpoint(serial, endpoint)
+	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
@@ -298,7 +321,7 @@ func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	err = installApk(device, apk_acquirer)
+	err = installApk(device.Device, apk_acquirer)
 	if err != nil {
 		return err
 	}
@@ -309,12 +332,12 @@ func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 func resourceAndroidApkDelete(d *schema.ResourceData, m interface{}) error {
 	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
 
-	device, _, err := findDeviceBySerialOrEndpoint(serial, endpoint)
+	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
 
-	err = uninstallApk(device, d.Get("name").(string))
+	err = uninstallApk(device.Device, d.Get("name").(string))
 	if err != nil {
 		return err
 	}
