@@ -141,14 +141,16 @@ func connectDevice(endpoint string) (*adb.Device, error) {
 		return nil, fmt.Errorf("Failed to get devices: %s", err)
 	}
 
+	var found []string = make([]string, 0)
 	for _, device := range devices {
 		log.Println("Found device", device.ID)
 		if device.ID == endpoint {
 			return device, nil
 		}
+		found = append(found, device.ID)
 	}
 
-	return nil, fmt.Errorf("Could not find %s", endpoint)
+	return nil, fmt.Errorf("Could not find %s - perhaps you meant one of %s?", endpoint, found)
 }
 
 func getDevice(serial string) (*adb.Device, error) {
