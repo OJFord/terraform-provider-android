@@ -3,11 +3,9 @@ package repo
 import (
 	"fmt"
 	"github.com/adrg/xdg"
+	aapt "github.com/shogo82148/androidbinary/apk"
 	"log"
 	"mvdan.cc/fdroidcl/adb"
-	"os/exec"
-	"regexp"
-	"strconv"
 )
 
 type APKAcquirer interface {
@@ -38,39 +36,23 @@ func Path(apk APKAcquirer) string {
 }
 
 func Version(apk APKAcquirer) (int, error) {
-	cmd := exec.Command("aapt2", "dump", "badging", Path(apk))
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
+	pkg, err := aapt.OpenFile(Path(apk))
 	if err != nil {
-		return -1, fmt.Errorf("Failed to read %s versionCode: %s", apk.Name(), stdouterr)
+		return -1, fmt.Errorf("Failed to read %s versionCode: %s", apk.Name(), err)
 	}
 
-	re_vcode := regexp.MustCompile(`versionCode='(\d+)'`)
-	matches := re_vcode.FindStringSubmatch(string(stdouterr))
-	if len(matches) == 0 {
-		return -1, fmt.Errorf("Failed to find %s's versionCode", apk.Name())
-	}
-	v, err := strconv.ParseInt(string(matches[1]), 10, 32)
-	if err != nil {
-		return -1, err
-	}
-
-	return int(v), nil
+	v, err := pkg.Manifest().VersionCode.Int32()
+	log.Printf("%s versionCode is %d", apk.Name(), v)
+	return int(v), err
 }
 
 func VersionName(apk APKAcquirer) (string, error) {
-	cmd := exec.Command("aapt2", "dump", "badging", Path(apk))
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
+	pkg, err := aapt.OpenFile(Path(apk))
 	if err != nil {
-		return "", fmt.Errorf("Failed to read %s versionName: %s", apk.Name(), stdouterr)
+		return "", fmt.Errorf("Failed to read %s versionName: %s", apk.Name(), err)
 	}
 
-	re_vname := regexp.MustCompile(`versionName='([^']+)'`)
-	matches := re_vname.FindStringSubmatch(string(stdouterr))
-	if len(matches) == 0 {
-		return "", fmt.Errorf("Failed to find %s's versionName", apk.Name())
-	}
-
-	return string(matches[1]), nil
+	v, err := pkg.Manifest().VersionName.String()
+	log.Printf("%s versionName is %s", apk.Name(), v)
+	return v, err
 }
