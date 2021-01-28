@@ -38,7 +38,7 @@ func Path(apk APKAcquirer) string {
 }
 
 func Version(apk APKAcquirer) (int, error) {
-	cmd := exec.Command("aapt", "dump", "badging", Path(apk))
+	cmd := exec.Command("aapt2", "dump", "badging", Path(apk))
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
@@ -59,7 +59,7 @@ func Version(apk APKAcquirer) (int, error) {
 }
 
 func VersionName(apk APKAcquirer) (string, error) {
-	cmd := exec.Command("aapt", "dump", "badging", Path(apk))
+	cmd := exec.Command("aapt2", "dump", "badging", Path(apk))
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
