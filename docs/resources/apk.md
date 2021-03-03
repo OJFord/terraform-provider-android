@@ -12,7 +12,6 @@ Provides an Android APK resource. This can be used to create, read, update, and 
 ## System dependencies
 
 Currently CRUDing an `android_apk` resource depends on the following binaries in `$PATH`:
-- `aapt` (from android-sdk-build-tools)
 - `adb` (from android-tools)
 - `gplaycli` (from python-pip: gplaycli)
 
