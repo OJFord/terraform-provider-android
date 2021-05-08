@@ -1,15 +1,28 @@
+.PHONY: clean-aurora-store clean-docs clean-provider default examples fmt
 EXAMPLES := $(wildcard examples/*)
+AURORASTORE := android/apk/AuroraStore/app/build/outputs/apk/release/app-release-unsigned.apk
 
-default: build
+default: clean-docs clean-provider fmt terraform-provider-android docs
 
-build: fmt doc
+clean-aurora-store:
+	rm $(AURORASTORE) || true
+
+$(AURORASTORE):
 	(cd android/apk/AuroraStore && ./gradlew assembleRelease)
+
+clean-provider:
+	rm terraform-provider-android || true
+
+terraform-provider-android: $(AURORASTORE)
 	go build -o terraform-provider-android
 
 fmt:
 	gofmt -s -e -w .
 
-doc:
+clean-docs:
+	rm -r docs || true
+
+docs: terraform-provider-android
 	tfplugindocs
 
 examples: build $(EXAMPLES)
