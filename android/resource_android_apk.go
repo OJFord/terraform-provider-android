@@ -231,12 +231,13 @@ func findDeviceBySerialOrEndpoint(serial string, endpoint string, m Meta) (*Devi
 
 func installApk(device *adb.Device, apk repo.APKAcquirer) error {
 	log.Printf("[DEBUG] Requested to install %s", apk.Apk().Name)
-	if apk.Apk().Path == nil {
-		return fmt.Errorf("Internal error, %s missing", apk.Apk().Name)
+	path, err := apk.UpdateCache(device)
+	if err != nil {
+		return err
 	}
 
-	log.Printf("[DEBUG] Installing %s from %s", apk.Apk().Name, *apk.Apk().Path)
-	if err := device.Install(*apk.Apk().Path); err != nil {
+	log.Printf("[DEBUG] Installing %s from %s", apk.Apk().Name, path)
+	if err := device.Install(path); err != nil {
 		return fmt.Errorf("Failed to install %s to %s: %s", apk.Apk().Name, device.Model, err)
 	}
 
@@ -260,12 +261,12 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
+	apkAcquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
 
-	err = installApk(device.Device, apk_acquirer)
+	err = installApk(device.Device, apkAcquirer)
 	if err != nil {
 		return err
 	}
@@ -326,12 +327,12 @@ func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
+	apkAcquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
 	if err != nil {
 		return err
 	}
 
-	err = installApk(device.Device, apk_acquirer)
+	err = installApk(device.Device, apkAcquirer)
 	if err != nil {
 		return err
 	}
