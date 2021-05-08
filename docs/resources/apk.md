@@ -38,7 +38,7 @@ resource "android_apk" "example" {
 
 - **endpoint** (String) IP:PORT of the device. Required for ADB over WiFi, omit for USB connections.
 - **id** (String) The ID of this resource.
-- **method** (String) Method to use for acquiring the APK. (gplaycli, fdroid).
+- **method** (String) Method to use for acquiring the APK. (fdroid, gplaycli).
 - **serial** (String) Serial number (`getprop ro.serialno`) of the device.
 
 ### Read-Only

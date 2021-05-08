@@ -32,7 +32,7 @@ func resourceAndroidApk() *schema.Resource {
 			},
 			"method": {
 				Default:     "gplaycli",
-				Description: "Method to use for acquiring the APK. (gplaycli, fdroid).",
+				Description: "Method to use for acquiring the APK. (fdroid, gplaycli).",
 				Optional:    true,
 				Type:        schema.TypeString,
 			},

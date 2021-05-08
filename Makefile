@@ -2,11 +2,14 @@ EXAMPLES := $(wildcard examples/*)
 
 default: build
 
-build: fmt
+build: fmt doc
 	go build -o terraform-provider-android
 
 fmt:
 	gofmt -s -e -w .
+
+doc:
+	tfplugindocs
 
 examples: build $(EXAMPLES)
 	for d in $(EXAMPLES); do \
