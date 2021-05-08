@@ -29,14 +29,14 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", err
 	}
 
-	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg)
+	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg.apk.Name)
 	pkg.apk.Path = &apkPath
 
 	cmd := exec.Command("python", "-m", "gplaycli")
 	_, err = os.Stat(apkPath)
 	if os.IsNotExist(err) {
-		log.Println("Downloading", pkg)
-		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apkDir), fmt.Sprint("--download=", pkg))
+		log.Println("[INFO] Downloading", pkg.apk.Name)
+		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apkDir), fmt.Sprint("--download=", pkg.apk.Name))
 	} else {
 		log.Println("Updating cached packages")
 		cmd.Args = append(cmd.Args, fmt.Sprint("--update=", apkDir), "--yes")
@@ -48,9 +48,9 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", fmt.Errorf("gplaycli is not installed (with this environment's `python`)")
 	}
 	if err != nil || strings.Contains(string(stdouterr), "[ERROR]") {
-		return "", fmt.Errorf("Failed to download or update %s: %s", pkg, stdouterr)
+		return "", fmt.Errorf("Failed to download or update %s: %s", pkg.apk.Name, stdouterr)
 	}
-	log.Println(pkg, "cached")
+	log.Printf("[INFO] %s cached", pkg.apk.Name)
 
 	return *pkg.apk.Path, nil
 }

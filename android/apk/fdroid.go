@@ -60,21 +60,21 @@ func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
 
 	var apk *fdroid.Apk
 	for _, app := range index.Apps {
-		log.Println("Found", app.PackageName)
+		log.Printf("[DEBUG] Found %s", app.PackageName)
 		if app.PackageName == pkg.apk.Name {
 			if apk = app.SuggestedApk(device); apk == nil {
-				return "", fmt.Errorf("No %s APK found for %s", pkg, device.Model)
+				return "", fmt.Errorf("No %s APK found for %s", pkg.apk.Name, device.Model)
 			}
 			break
 		}
 	}
 
 	if apk == nil {
-		return "", fmt.Errorf("No such %s app found", pkg)
+		return "", fmt.Errorf("[INFO] No such %s app found", pkg.apk.Name)
 	}
 
 	if err := downloadEtag(apk.URL(), apkPath, apk.Hash); err != nil && err != errNotModified {
-		return "", fmt.Errorf("Failed to download %s: %s", apk.ApkName, err)
+		return "", fmt.Errorf("[INFO] Failed to download %s: %s", apk.ApkName, err)
 	}
 
 	return *pkg.apk.Path, nil
