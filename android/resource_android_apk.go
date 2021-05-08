@@ -230,7 +230,12 @@ func findDeviceBySerialOrEndpoint(serial string, endpoint string, m Meta) (*Devi
 }
 
 func installApk(device *adb.Device, apk repo.APKAcquirer) error {
-	log.Println("Installing", apk.Apk().Name)
+	log.Printf("[DEBUG] Requested to install %s", apk.Apk().Name)
+	if apk.Apk().Path == nil {
+		return fmt.Errorf("Internal error, %s missing", apk.Apk().Name)
+	}
+
+	log.Printf("[DEBUG] Installing %s from %s", apk.Apk().Name, *apk.Apk().Path)
 	if err := device.Install(*apk.Apk().Path); err != nil {
 		return fmt.Errorf("Failed to install %s to %s: %s", apk.Apk().Name, device.Model, err)
 	}

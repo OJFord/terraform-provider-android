@@ -17,10 +17,10 @@ import (
 var comAuroraStoreApk []byte
 
 type AuroraPackage struct {
-	apk Apk
+	apk *Apk
 }
 
-func (pkg AuroraPackage) Apk() Apk {
+func (pkg AuroraPackage) Apk() *Apk {
 	return pkg.apk
 }
 
@@ -41,7 +41,7 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		if err = os.WriteFile(apkPath, comAuroraStoreApk, 0666); err != nil {
 			return "", err
 		}
-		return apkPath, nil
+		return *pkg.apk.Path, nil
 	}
 
 	cmd := device.AdbCmd(

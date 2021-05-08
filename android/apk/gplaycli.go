@@ -11,10 +11,10 @@ import (
 )
 
 type GPlayCLIPackage struct {
-	apk Apk
+	apk *Apk
 }
 
-func (pkg GPlayCLIPackage) Apk() Apk {
+func (pkg GPlayCLIPackage) Apk() *Apk {
 	return pkg.apk
 }
 

@@ -15,10 +15,10 @@ import (
 )
 
 type FDroidPackage struct {
-	apk Apk
+	apk *Apk
 }
 
-func (pkg FDroidPackage) Apk() Apk {
+func (pkg FDroidPackage) Apk() *Apk {
 	return pkg.apk
 }
 

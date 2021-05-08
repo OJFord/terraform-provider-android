@@ -9,7 +9,7 @@ import (
 
 type APKAcquirer interface {
 	UpdateCache(*adb.Device) (string, error)
-	Apk() Apk
+	Apk() *Apk
 }
 
 type Apk struct {
@@ -19,19 +19,27 @@ type Apk struct {
 
 func Package(method string, pkg string) (APKAcquirer, error) {
 	apk := Apk{Name: pkg}
+	var acq APKAcquirer
+
 	switch method {
 	case "aurora":
-		return AuroraPackage{apk}, nil
+		acq = AuroraPackage{&apk}
 	case "fdroid":
-		return FDroidPackage{apk}, nil
+		acq = FDroidPackage{&apk}
 	case "gplaycli":
-		return GPlayCLIPackage{apk}, nil
+		acq = GPlayCLIPackage{&apk}
 	default:
 		return nil, fmt.Errorf("Unknown APKAcquirer method: %s", method)
 	}
+
+	return acq, nil
 }
 
 func Version(apk APKAcquirer) (int, error) {
+	if apk.Apk().Path == nil {
+		return -1, fmt.Errorf("Expected %s to exist, but path unset", apk.Apk().Name)
+	}
+
 	pkg, err := aapt.OpenFile(*apk.Apk().Path)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to read %s versionCode: %s", apk.Apk().Name, err)
@@ -43,6 +51,10 @@ func Version(apk APKAcquirer) (int, error) {
 }
 
 func VersionName(apk APKAcquirer) (string, error) {
+	if apk.Apk().Path == nil {
+		return "", fmt.Errorf("Expected %s to exist, but path unset", apk.Apk().Name)
+	}
+
 	pkg, err := aapt.OpenFile(*apk.Apk().Path)
 	if err != nil {
 		return "", fmt.Errorf("Failed to read %s versionName: %s", apk.Apk().Name, err)
