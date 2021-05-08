@@ -16,10 +16,12 @@ import (
 //go:embed AuroraStore/app/build/outputs/apk/release/app-release-unsigned.apk
 var comAuroraStoreApk []byte
 
-type AuroraPackage string
+type AuroraPackage struct {
+	apk Apk
+}
 
-func (pkg AuroraPackage) Name() string {
-	return string(pkg)
+func (pkg AuroraPackage) Apk() Apk {
+	return pkg.apk
 }
 
 func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
@@ -28,12 +30,13 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", err
 	}
 
-	if pkg.Name() == "com.aurora.store" {
-		apkFname := fmt.Sprintf("%s/%s.apk", apkDir, pkg)
-		if err = os.WriteFile(apkFname, comAuroraStoreApk, 0666); err != nil {
+	if pkg.apk.Name == "com.aurora.store" {
+		apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg)
+		pkg.apk.Path = &apkPath
+		if err = os.WriteFile(apkPath, comAuroraStoreApk, 0666); err != nil {
 			return "", err
 		}
-		return apkFname, nil
+		return apkPath, nil
 	}
 
 	cmd := device.AdbCmd(
@@ -54,7 +57,7 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 	}
 
 	var stdout []byte
-	for !strings.Contains(string(stdout), pkg.Name()) {
+	for !strings.Contains(string(stdout), pkg.apk.Name) {
 		time.Sleep(3 * time.Second)
 		cmd = device.AdbCmd("shell", "ls", "sdcard/Aurora/Store/Downloads/")
 		stdout, err = cmd.Output()
@@ -76,5 +79,7 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", fmt.Errorf("Failed to retrieve %s: %s", pkg, stdouterr)
 	}
 
-	return fmt.Sprintf("%s/%s/%s/%s.apk", apkDir, pkg, versionDownloaded, pkg), nil
+	apkPath := fmt.Sprintf("%s/%s/%s/%s.apk", apkDir, pkg, versionDownloaded, pkg)
+	pkg.apk.Path = &apkPath
+	return *pkg.apk.Path, nil
 }

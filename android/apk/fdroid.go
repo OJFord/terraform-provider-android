@@ -14,17 +14,23 @@ import (
 	"os"
 )
 
-type FDroidPackage string
+type FDroidPackage struct {
+	apk Apk
+}
 
-func (pkg FDroidPackage) Name() string {
-	return string(pkg)
+func (pkg FDroidPackage) Apk() Apk {
+	return pkg.apk
 }
 
 func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
-	jarpath, err := xdg.CacheFile("terraform-android/fdroid/fdroid-index.jar")
+	apkDir, err := xdg.CacheFile("terraform-android/fdroid")
 	if err != nil {
 		return "", err
 	}
+
+	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg.apk.Name)
+	pkg.apk.Path = &apkPath
+	jarpath := fmt.Sprintf("%s/fdroid-index.jar", apkDir)
 
 	log.Println("Downloading F-Droid index")
 	if err = downloadEtag("https://f-droid.org/repo/index-v1.jar", jarpath, nil); err != nil && err != errNotModified {
@@ -50,7 +56,7 @@ func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
 	var apk *fdroid.Apk
 	for _, app := range index.Apps {
 		log.Println("Found", app.PackageName)
-		if app.PackageName == string(pkg) {
+		if app.PackageName == pkg.apk.Name {
 			if apk = app.SuggestedApk(device); apk == nil {
 				return "", fmt.Errorf("No %s APK found for %s", pkg, device.Model)
 			}
@@ -62,11 +68,11 @@ func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", fmt.Errorf("No such %s app found", pkg)
 	}
 
-	if err := downloadEtag(apk.URL(), Path(pkg), apk.Hash); err != nil && err != errNotModified {
+	if err := downloadEtag(apk.URL(), apkPath, apk.Hash); err != nil && err != errNotModified {
 		return "", fmt.Errorf("Failed to download %s: %s", apk.ApkName, err)
 	}
 
-	return Path(pkg), nil
+	return *pkg.apk.Path, nil
 }
 
 /* Borrowed from github.com/mvdan/fdroidcl/blob/4684bbe535147f80898e1e657bcd3cd253c11ec4/update.go

@@ -10,10 +10,12 @@ import (
 	"strings"
 )
 
-type GPlayCLIPackage string
+type GPlayCLIPackage struct {
+	apk Apk
+}
 
-func (pkg GPlayCLIPackage) Name() string {
-	return string(pkg)
+func (pkg GPlayCLIPackage) Apk() Apk {
+	return pkg.apk
 }
 
 func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
@@ -21,9 +23,11 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	apkPath := fmt.Sprintf("%s/%s.apk", apk_dir, pkg)
+	pkg.apk.Path = &apkPath
 
 	cmd := exec.Command("python", "-m", "gplaycli")
-	_, err = os.Stat(fmt.Sprint(apk_dir, "/", pkg, ".apk"))
+	_, err = os.Stat(apkPath)
 	if os.IsNotExist(err) {
 		log.Println("Downloading", pkg)
 		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg))
@@ -42,5 +46,5 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 	}
 	log.Println(pkg, "cached")
 
-	return fmt.Sprint(apk_dir, "/", pkg, ".apk"), nil
+	return *pkg.apk.Path, nil
 }
