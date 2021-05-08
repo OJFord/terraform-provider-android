@@ -28,6 +28,11 @@ func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", err
 	}
 
+	err = os.MkdirAll(apkDir, 0775)
+	if err != nil {
+		return "", err
+	}
+
 	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg.apk.Name)
 	pkg.apk.Path = &apkPath
 	jarpath := fmt.Sprintf("%s/fdroid-index.jar", apkDir)

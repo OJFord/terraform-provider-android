@@ -19,11 +19,17 @@ func (pkg GPlayCLIPackage) Apk() Apk {
 }
 
 func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
-	apk_dir, err := xdg.CacheFile("terraform-android/gplaycli")
+	apkDir, err := xdg.CacheFile("terraform-android/gplaycli")
 	if err != nil {
 		return "", err
 	}
-	apkPath := fmt.Sprintf("%s/%s.apk", apk_dir, pkg)
+
+	err = os.MkdirAll(apkDir, 0775)
+	if err != nil {
+		return "", err
+	}
+
+	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg)
 	pkg.apk.Path = &apkPath
 
 	cmd := exec.Command("python", "-m", "gplaycli")
@@ -33,7 +39,7 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg))
 	} else {
 		log.Println("Updating cached packages")
-		cmd.Args = append(cmd.Args, fmt.Sprint("--update=", apk_dir), "--yes")
+		cmd.Args = append(cmd.Args, fmt.Sprint("--update=", apkDir), "--yes")
 	}
 
 	stdouterr, err := cmd.CombinedOutput()

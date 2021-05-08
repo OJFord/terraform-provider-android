@@ -30,6 +30,11 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", err
 	}
 
+	err = os.MkdirAll(apkDir, 0775)
+	if err != nil {
+		return "", err
+	}
+
 	if pkg.apk.Name == "com.aurora.store" {
 		apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg)
 		pkg.apk.Path = &apkPath
