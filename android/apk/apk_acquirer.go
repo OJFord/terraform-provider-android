@@ -10,7 +10,6 @@ import (
 
 type APKAcquirer interface {
 	Name() string
-	Source() string
 	UpdateCache(*adb.Device) (string, error)
 }
 

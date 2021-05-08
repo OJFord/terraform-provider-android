@@ -20,10 +20,6 @@ func (pkg FDroidPackage) Name() string {
 	return string(pkg)
 }
 
-func (pkg FDroidPackage) Source() string {
-	return "F-Droid"
-}
-
 func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
 	jarpath, err := xdg.CacheFile("terraform-android/fdroid/fdroid-index.jar")
 	if err != nil {

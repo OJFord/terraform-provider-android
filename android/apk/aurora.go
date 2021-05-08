@@ -22,10 +22,6 @@ func (pkg AuroraPackage) Name() string {
 	return string(pkg)
 }
 
-func (pkg AuroraPackage) Source() string {
-	return "Google Play Store via Aurora"
-}
-
 func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 	apkDir, err := xdg.CacheFile("terraform-android/aurora")
 	if err != nil {

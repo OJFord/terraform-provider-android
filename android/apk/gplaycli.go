@@ -16,10 +16,6 @@ func (pkg GPlayCLIPackage) Name() string {
 	return string(pkg)
 }
 
-func (pkg GPlayCLIPackage) Source() string {
-	return "Google Play Store via gplaycli"
-}
-
 func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 	apk_dir, err := xdg.CacheFile("terraform-android/gplaycli")
 	if err != nil {
