@@ -40,7 +40,7 @@ resource "android_apk" "example" {
 
 - **endpoint** (String) IP:PORT of the device. Required for ADB over WiFi, omit for USB connections.
 - **id** (String) The ID of this resource.
-- **method** (String) Method to use for acquiring the APK. (aurora, fdroid, gplaycli). `"aurora"` requires `com.aurora.store`, currently a forked version, but which it can install to bootstrap itself.
+- **method** (String) Method to use for acquiring the APK. (aurora, fdroid, gplaycli). `"aurora"` requires `com.aurora.store.debug`, currently a forked version, but which it can install to bootstrap itself.
 - **serial** (String) Serial number (`getprop ro.serialno`) of the device.
 
 ### Read-Only

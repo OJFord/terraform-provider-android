@@ -36,7 +36,7 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 	_, err = os.Stat(apkPath)
 	if os.IsNotExist(err) {
 		log.Println("Downloading", pkg)
-		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg))
+		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apkDir), fmt.Sprint("--download=", pkg))
 	} else {
 		log.Println("Updating cached packages")
 		cmd.Args = append(cmd.Args, fmt.Sprint("--update=", apkDir), "--yes")

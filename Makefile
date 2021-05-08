@@ -1,6 +1,6 @@
 .PHONY: clean-aurora-store clean-docs clean-provider default examples fmt
 EXAMPLES := $(wildcard examples/*)
-AURORASTORE := android/apk/AuroraStore/app/build/outputs/apk/release/app-release-unsigned.apk
+AURORASTORE := android/apk/AuroraStore/app/build/outputs/apk/debug/app-debug.apk
 
 default: clean-docs clean-provider fmt terraform-provider-android docs
 
@@ -8,7 +8,7 @@ clean-aurora-store:
 	rm $(AURORASTORE) || true
 
 $(AURORASTORE):
-	(cd android/apk/AuroraStore && ./gradlew assembleRelease)
+	(cd android/apk/AuroraStore && ./gradlew assembleDebug)
 
 clean-provider:
 	rm terraform-provider-android || true

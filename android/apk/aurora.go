@@ -13,7 +13,7 @@ import (
 	_ "embed"
 )
 
-//go:embed AuroraStore/app/build/outputs/apk/release/app-release-unsigned.apk
+//go:embed AuroraStore/app/build/outputs/apk/debug/app-debug.apk
 var comAuroraStoreApk []byte
 
 type AuroraPackage struct {
@@ -35,7 +35,7 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", err
 	}
 
-	if pkg.apk.Name == "com.aurora.store" {
+	if pkg.apk.Name == "com.aurora.store.debug" {
 		apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg)
 		pkg.apk.Path = &apkPath
 		if err = os.WriteFile(apkPath, comAuroraStoreApk, 0666); err != nil {
@@ -48,14 +48,14 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		"shell",
 		"am",
 		"start",
-		"-n", "com.aurora.store/com.aurora.store.view.ui.details.AppDetailsActivity",
+		"-n", "com.aurora.store.debug/com.aurora.store.view.ui.details.AppDetailsActivity",
 		"-d", fmt.Sprintf("market://?id=%s\\&download", pkg),
 	)
 
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
-	if strings.Contains(string(stdouterr), "Activity class {com.aurora.store/com.aurora.store.view.ui.details.AppDetailsActivity} does not exist") {
-		return "", fmt.Errorf("Failed to trigger download for %s: is `com.aurora.store` installed?", pkg)
+	if strings.Contains(string(stdouterr), "Activity class {com.aurora.store.debug/com.aurora.store.view.ui.details.AppDetailsActivity} does not exist") {
+		return "", fmt.Errorf("Failed to trigger download for %s: is `com.aurora.store.debug` installed?", pkg)
 	}
 	if err != nil {
 		return "", fmt.Errorf("Failed to trigger download for %s: %s", pkg, stdouterr)
