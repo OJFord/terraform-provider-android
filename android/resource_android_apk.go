@@ -240,6 +240,7 @@ func installApk(device *adb.Device, apk repo.APKAcquirer) error {
 		return fmt.Errorf("Failed to install %s to %s: %s", apk.Apk().Name, device.Model, err)
 	}
 
+	log.Printf("[INFO] %s installed!", apk.Apk().Name)
 	return nil
 }
 
@@ -303,12 +304,14 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 
 	pkg := d.Get("name").(string)
 	if ipkg, ok := installed[pkg]; ok {
+		log.Printf("[INFO] %s installed at version %s (%s)", ipkg.ID, ipkg.VersName, string(ipkg.VersCode))
 		d.SetId(fmt.Sprint(serial, "-", pkg))
 		d.Set("version", ipkg.VersCode)
 		d.Set("version_name", ipkg.VersName)
 		return nil
 	}
 
+	log.Printf("[INFO] %s not installed", pkg)
 	d.SetId("")
 	d.Set("version", -1)
 	d.Set("version_name", "Not installed")

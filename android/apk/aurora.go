@@ -36,14 +36,17 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 	}
 
 	if pkg.apk.Name == "com.aurora.store.debug" {
+		log.Println("[DEBUG] Bootstrapping AuroraStore")
 		apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg.apk.Name)
 		pkg.apk.Path = &apkPath
 		if err = os.WriteFile(apkPath, comAuroraStoreApk, 0666); err != nil {
+			log.Println("[ERROR] Failed to bootstrap AuroraStore")
 			return "", err
 		}
 		return *pkg.apk.Path, nil
 	}
 
+	log.Printf("[DEBUG] AuroraStore to download %s", pkg.apk.Name)
 	cmd := device.AdbCmd(
 		"shell",
 		"am",
