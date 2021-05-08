@@ -3,6 +3,7 @@ EXAMPLES := $(wildcard examples/*)
 default: build
 
 build: fmt doc
+	(cd android/apk/AuroraStore && ./gradlew assembleRelease)
 	go build -o terraform-provider-android
 
 fmt:

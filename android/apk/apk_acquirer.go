@@ -16,10 +16,12 @@ type APKAcquirer interface {
 
 func Package(method string, pkg string) (APKAcquirer, error) {
 	switch method {
-	case "gplaycli":
-		return GPlayCLIPackage(pkg), nil
+	case "aurora":
+		return AuroraPackage(pkg), nil
 	case "fdroid":
 		return FDroidPackage(pkg), nil
+	case "gplaycli":
+		return GPlayCLIPackage(pkg), nil
 	default:
 		return nil, fmt.Errorf("Unknown APKAcquirer method: %s", method)
 	}

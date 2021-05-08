@@ -1,0 +1,3 @@
+[submodule "AuroraStore"]
+	path = android/apk/AuroraStore
+	url = git@gitlab.com:OJFord/AuroraStore

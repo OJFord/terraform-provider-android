@@ -13,6 +13,8 @@ Provides an Android APK resource. This can be used to create, read, update, and 
 
 Currently CRUDing an `android_apk` resource depends on the following binaries in `$PATH`:
 - `adb` (from android-tools)
+
+For `method="gplaycli"`:
 - `gplaycli` (from python-pip: gplaycli)
 
 It is intended to reduce/eliminate these (cf. [GitHub#4](//github.com/OJFord/terraform-provider-android/issues/4)), but for now, they're required (on the machine running `terraform`).
@@ -38,7 +40,7 @@ resource "android_apk" "example" {
 
 - **endpoint** (String) IP:PORT of the device. Required for ADB over WiFi, omit for USB connections.
 - **id** (String) The ID of this resource.
-- **method** (String) Method to use for acquiring the APK. (fdroid, gplaycli).
+- **method** (String) Method to use for acquiring the APK. (aurora, fdroid, gplaycli). `"aurora"` requires `com.aurora.store`, currently a forked version, but which it can install to bootstrap itself.
 - **serial** (String) Serial number (`getprop ro.serialno`) of the device.
 
 ### Read-Only

@@ -31,8 +31,8 @@ func resourceAndroidApk() *schema.Resource {
 				Type: schema.TypeString,
 			},
 			"method": {
-				Default:     "gplaycli",
-				Description: "Method to use for acquiring the APK. (fdroid, gplaycli).",
+				Default:     "aurora",
+				Description: "Method to use for acquiring the APK. (aurora, fdroid, gplaycli). `\"aurora\"` requires `com.aurora.store`, currently a forked version, but which it can install to bootstrap itself.",
 				Optional:    true,
 				Type:        schema.TypeString,
 			},
