@@ -25,7 +25,7 @@ func (pkg FDroidPackage) Source() string {
 }
 
 func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
-	jarpath, err := xdg.CacheFile("terraform-android/fdroid-index.jar")
+	jarpath, err := xdg.CacheFile("terraform-android/fdroid/fdroid-index.jar")
 	if err != nil {
 		return "", err
 	}

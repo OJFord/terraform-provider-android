@@ -21,7 +21,7 @@ func (pkg GPlayCLIPackage) Source() string {
 }
 
 func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
-	apk_dir, err := xdg.CacheFile("terraform-android/")
+	apk_dir, err := xdg.CacheFile("terraform-android/gplaycli")
 	if err != nil {
 		return "", err
 	}
