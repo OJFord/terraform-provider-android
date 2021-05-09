@@ -46,7 +46,7 @@ func Version(apk APKAcquirer) (int, error) {
 	}
 
 	v, err := pkg.Manifest().VersionCode.Int32()
-	log.Printf("%s versionCode is %d", apk.Apk().Name, v)
+	log.Printf("[INFO] %s versionCode is %d", apk.Apk().Name, v)
 	return int(v), err
 }
 
@@ -61,6 +61,6 @@ func VersionName(apk APKAcquirer) (string, error) {
 	}
 
 	v, err := pkg.Manifest().VersionName.String()
-	log.Printf("%s versionName is %s", apk.Apk().Name, v)
+	log.Printf("[INFO] %s versionName is %s", apk.Apk().Name, v)
 	return v, err
 }

@@ -119,6 +119,7 @@ func customiseDiff(d *schema.ResourceDiff, m interface{}) error {
 		return err
 	}
 
+	log.Printf("[DEBUG] Diff complete for %s @ %d", d.Get("name").(string), v)
 	return nil
 }
 
@@ -254,14 +255,15 @@ func uninstallApk(device *adb.Device, pkg string) error {
 }
 
 func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
-	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+	pkg, serial, endpoint := d.Get("name").(string), d.Get("serial").(string), d.Get("endpoint").(string)
+	log.Printf("[DEBUG] Creating %s on device %s @ %s", pkg, serial, endpoint)
 
 	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
 
-	apkAcquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
+	apkAcquirer, err := repo.Package(d.Get("method").(string), pkg)
 	if err != nil {
 		return err
 	}
@@ -275,7 +277,8 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
-	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+	pkg, serial, endpoint := d.Get("name").(string), d.Get("serial").(string), d.Get("endpoint").(string)
+	log.Printf("[DEBUG] Reading current state of %s on device %s @ %s", pkg, serial, endpoint)
 
 	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
@@ -293,6 +296,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Device %s is not ready, in state: %s", serial, stdout)
 	}
 
+	log.Printf("[DEBUG] Listing packages on device %s @ %s", serial, endpoint)
 	var installed map[string]adb.Package
 	if len(device.packages) == 0 {
 		var err error
@@ -303,9 +307,8 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		device.packages = installed
 	}
 
-	pkg := d.Get("name").(string)
 	if ipkg, ok := installed[pkg]; ok {
-		log.Printf("[INFO] %s installed at version %s (%s)", ipkg.ID, ipkg.VersName, string(ipkg.VersCode))
+		log.Printf("[INFO] %s installed at version %s (%d)", ipkg.ID, ipkg.VersName, ipkg.VersCode)
 		d.SetId(fmt.Sprint(serial, "-", pkg))
 		d.Set("version", ipkg.VersCode)
 		d.Set("version_name", ipkg.VersName)
@@ -320,14 +323,15 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
-	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+	pkg, serial, endpoint := d.Get("name").(string), d.Get("serial").(string), d.Get("endpoint").(string)
+	log.Printf("[DEBUG] Updating %s on device %s @ %s", pkg, serial, endpoint)
 
 	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
 
-	apkAcquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
+	apkAcquirer, err := repo.Package(d.Get("method").(string), pkg)
 	if err != nil {
 		return err
 	}
@@ -341,14 +345,15 @@ func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkDelete(d *schema.ResourceData, m interface{}) error {
-	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+	pkg, serial, endpoint := d.Get("name").(string), d.Get("serial").(string), d.Get("endpoint").(string)
+	log.Printf("[DEBUG] Deleting %s from device %s @ %s", pkg, serial, endpoint)
 
 	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
 
-	err = uninstallApk(device.Device, d.Get("name").(string))
+	err = uninstallApk(device.Device, pkg)
 	if err != nil {
 		return err
 	}
