@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/adrg/xdg"
+	aapt "github.com/shogo82148/androidbinary/apk"
 	"mvdan.cc/fdroidcl/adb"
 
 	_ "embed"
@@ -120,7 +121,7 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) error {
 	downloadMarkers := fmt.Sprintf("%s/.*.download-*", auroraPkgDir)
 
 	var stdout []byte
-	for i := 2; strings.Contains(string(stdout), "download-in-progress") || !strings.Contains(string(stdout), "download-complete"); i++ {
+	for i := 3; strings.Contains(string(stdout), "download-in-progress") || !strings.Contains(string(stdout), "download-complete"); i++ {
 		if i >= 6 {
 			i = 0
 			err = pkg.triggerDownload(device)
@@ -147,15 +148,28 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) error {
 	}
 	log.Printf("[INFO] Downloaded %s @ %d", pkg.apk.Name, versionDownloaded)
 
-	cmd := device.AdbCmd("pull", auroraPkgDir, fmt.Sprintf("%s/", apkDir))
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
-	if err != nil {
-		return fmt.Errorf("Failed to retrieve %s: %s", pkg.apk.Name, stdouterr)
+	apkOk := false
+	for retries := 3; retries > 0 && !apkOk; retries-- {
+		cmd := device.AdbCmd("pull", auroraPkgDir, fmt.Sprintf("%s/", apkDir))
+		stdouterr, err := cmd.CombinedOutput()
+		log.Println(string(stdouterr))
+		if err != nil {
+			return fmt.Errorf("Failed to retrieve %s: %s", pkg.apk.Name, stdouterr)
+		}
+
+		if _, err = pkg.GetApkPaths(device, &versionDownloaded); err != nil {
+			return err
+		}
+
+		if _, err := aapt.OpenFile(*pkg.apk.BasePath); err == nil {
+			log.Printf("[ERROR] Failed to read %s: %s", *pkg.apk.BasePath, err)
+			apkOk = true
+		}
 	}
 
-	if _, err = pkg.GetApkPaths(device, &versionDownloaded); err != nil {
-		return err
+	if !apkOk {
+		return fmt.Errorf("%s APK corrupted", pkg.apk.Name)
 	}
+
 	return nil
 }
