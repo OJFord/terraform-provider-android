@@ -32,7 +32,7 @@ func resourceAndroidApk() *schema.Resource {
 			},
 			"method": {
 				Default:     "aurora",
-				Description: "Method to use for acquiring the APK. (aurora, fdroid, gplaycli). `\"aurora\"` requires `com.aurora.store.debug`, currently a forked version, but which it can install to bootstrap itself.",
+				Description: "Method to use for acquiring the APK. (aurora, fdroid, gplaycli). `\"aurora\"` requires `com.aurora.store.debug`, currently a forked version, but which it can install to bootstrap itself. Aurora is required for multi-APK bundles, i.e. some apps will not work with gplaycli.",
 				Optional:    true,
 				Type:        schema.TypeString,
 			},
@@ -90,7 +90,7 @@ func customiseDiff(d *schema.ResourceDiff, m interface{}) error {
 		return err
 	}
 
-	if _, err = apk.UpdateCache(device.Device); err != nil {
+	if err = apk.UpdateCache(device.Device); err != nil {
 		return err
 	}
 
@@ -230,15 +230,24 @@ func findDeviceBySerialOrEndpoint(serial string, endpoint string, m Meta) (*Devi
 	return nil, fmt.Errorf("No endpoint or serial specified")
 }
 
+func installMultiple(device *adb.Device, paths []string) error {
+	// fdroidcl.adb.Device doesn't have an API for `install-multiple`, just `install`
+	log.Printf("[INFO] Installing %v", paths)
+	cmd := device.AdbCmd(append([]string{"install-multiple", "-r"}, paths...)...)
+	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
+	return err
+}
+
 func installApk(device *adb.Device, apk repo.APKAcquirer) error {
 	log.Printf("[DEBUG] Requested to install %s", apk.Apk().Name)
-	path, err := apk.UpdateCache(device)
+	err := apk.UpdateCache(device)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("[DEBUG] Installing %s from %s", apk.Apk().Name, path)
-	if err := device.Install(path); err != nil {
+	log.Printf("[DEBUG] Installing %s from %s", apk.Apk().Name, *apk.Apk().BasePath)
+	if err := installMultiple(device, apk.Apk().Paths); err != nil {
 		return fmt.Errorf("Failed to install %s to %s: %s", apk.Apk().Name, device.Model, err)
 	}
 

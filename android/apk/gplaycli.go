@@ -18,19 +18,20 @@ func (pkg GPlayCLIPackage) Apk() *Apk {
 	return pkg.apk
 }
 
-func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
+func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) error {
 	apkDir, err := xdg.CacheFile("terraform-android/gplaycli")
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	err = os.MkdirAll(apkDir, 0775)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg.apk.Name)
-	pkg.apk.Path = &apkPath
+	pkg.apk.BasePath = &apkPath
+	pkg.apk.Paths = []string{apkPath}
 
 	cmd := exec.Command("python", "-m", "gplaycli")
 	_, err = os.Stat(apkPath)
@@ -45,12 +46,12 @@ func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if strings.Contains(string(stdouterr), "No module named gplaycli") {
-		return "", fmt.Errorf("gplaycli is not installed (with this environment's `python`)")
+		return fmt.Errorf("gplaycli is not installed (with this environment's `python`)")
 	}
 	if err != nil || strings.Contains(string(stdouterr), "[ERROR]") {
-		return "", fmt.Errorf("Failed to download or update %s: %s", pkg.apk.Name, stdouterr)
+		return fmt.Errorf("Failed to download or update %s: %s", pkg.apk.Name, stdouterr)
 	}
 	log.Printf("[INFO] %s cached", pkg.apk.Name)
 
-	return *pkg.apk.Path, nil
+	return nil
 }

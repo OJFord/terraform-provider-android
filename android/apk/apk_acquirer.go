@@ -8,13 +8,14 @@ import (
 )
 
 type APKAcquirer interface {
-	UpdateCache(*adb.Device) (string, error)
+	UpdateCache(*adb.Device) error
 	Apk() *Apk
 }
 
 type Apk struct {
-	Name string
-	Path *string
+	Name     string
+	BasePath *string
+	Paths    []string
 }
 
 func Package(method string, pkg string) (APKAcquirer, error) {
@@ -36,11 +37,11 @@ func Package(method string, pkg string) (APKAcquirer, error) {
 }
 
 func Version(apk APKAcquirer) (int, error) {
-	if apk.Apk().Path == nil {
+	if apk.Apk().BasePath == nil {
 		return -1, fmt.Errorf("Expected %s to exist, but path unset", apk.Apk().Name)
 	}
 
-	pkg, err := aapt.OpenFile(*apk.Apk().Path)
+	pkg, err := aapt.OpenFile(*apk.Apk().BasePath)
 	if err != nil {
 		return -1, fmt.Errorf("Failed to read %s versionCode: %s", apk.Apk().Name, err)
 	}
@@ -51,11 +52,11 @@ func Version(apk APKAcquirer) (int, error) {
 }
 
 func VersionName(apk APKAcquirer) (string, error) {
-	if apk.Apk().Path == nil {
+	if apk.Apk().BasePath == nil {
 		return "", fmt.Errorf("Expected %s to exist, but path unset", apk.Apk().Name)
 	}
 
-	pkg, err := aapt.OpenFile(*apk.Apk().Path)
+	pkg, err := aapt.OpenFile(*apk.Apk().BasePath)
 	if err != nil {
 		return "", fmt.Errorf("Failed to read %s versionName: %s", apk.Apk().Name, err)
 	}

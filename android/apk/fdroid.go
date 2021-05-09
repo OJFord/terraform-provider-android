@@ -22,40 +22,41 @@ func (pkg FDroidPackage) Apk() *Apk {
 	return pkg.apk
 }
 
-func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
+func (pkg FDroidPackage) UpdateCache(device *adb.Device) error {
 	apkDir, err := xdg.CacheFile("terraform-android/fdroid")
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	err = os.MkdirAll(apkDir, 0775)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg.apk.Name)
-	pkg.apk.Path = &apkPath
+	pkg.apk.BasePath = &apkPath
+	pkg.apk.Paths = []string{apkPath}
 	jarpath := fmt.Sprintf("%s/fdroid-index.jar", apkDir)
 
 	log.Println("Downloading F-Droid index")
 	if err = downloadEtag("https://f-droid.org/repo/index-v1.jar", jarpath, nil); err != nil && err != errNotModified {
-		return "", err
+		return err
 	}
 
 	jar, err := os.Open(jarpath)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	stat, err := jar.Stat()
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	log.Println("Loading F-Droid index")
 	index, err := fdroid.LoadIndexJar(jar, stat.Size(), nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	var apk *fdroid.Apk
@@ -63,21 +64,21 @@ func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
 		log.Printf("[DEBUG] Found %s", app.PackageName)
 		if app.PackageName == pkg.apk.Name {
 			if apk = app.SuggestedApk(device); apk == nil {
-				return "", fmt.Errorf("No %s APK found for %s", pkg.apk.Name, device.Model)
+				return fmt.Errorf("No %s APK found for %s", pkg.apk.Name, device.Model)
 			}
 			break
 		}
 	}
 
 	if apk == nil {
-		return "", fmt.Errorf("[INFO] No such %s app found", pkg.apk.Name)
+		return fmt.Errorf("[INFO] No such %s app found", pkg.apk.Name)
 	}
 
 	if err := downloadEtag(apk.URL(), apkPath, apk.Hash); err != nil && err != errNotModified {
-		return "", fmt.Errorf("[INFO] Failed to download %s: %s", apk.ApkName, err)
+		return fmt.Errorf("[INFO] Failed to download %s: %s", apk.ApkName, err)
 	}
 
-	return *pkg.apk.Path, nil
+	return nil
 }
 
 /* Borrowed from github.com/mvdan/fdroidcl/blob/4684bbe535147f80898e1e657bcd3cd253c11ec4/update.go
