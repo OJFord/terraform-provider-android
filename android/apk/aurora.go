@@ -3,7 +3,9 @@ package repo
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +24,28 @@ type AuroraPackage struct {
 
 func (pkg AuroraPackage) Apk() *Apk {
 	return pkg.apk
+}
+
+func (pkg AuroraPackage) triggerDownload(device *adb.Device) error {
+	log.Printf("[DEBUG] Requested AuroraStore to download %s", pkg.apk.Name)
+	cmd := device.AdbCmd(
+		"shell",
+		"am",
+		"start",
+		"-n", "com.aurora.store.debug/com.aurora.store.view.ui.details.AppDetailsActivity",
+		"-d", fmt.Sprintf("market://?id=%s\\&download", pkg.apk.Name),
+	)
+
+	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
+	if strings.Contains(string(stdouterr), "Activity class {com.aurora.store.debug/com.aurora.store.view.ui.details.AppDetailsActivity} does not exist") {
+		return fmt.Errorf("Failed to trigger download for %s: is `com.aurora.store.debug` installed?", pkg.apk.Name)
+	}
+	if err != nil {
+		return fmt.Errorf("Failed to trigger download for %s: %s", pkg.apk.Name, stdouterr)
+	}
+
+	return nil
 }
 
 func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
@@ -46,64 +70,55 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		return *pkg.apk.Path, nil
 	}
 
-	log.Printf("[DEBUG] AuroraStore to download %s", pkg.apk.Name)
-	cmd := device.AdbCmd(
-		"shell",
-		"am",
-		"start",
-		"-n", "com.aurora.store.debug/com.aurora.store.view.ui.details.AppDetailsActivity",
-		"-d", fmt.Sprintf("market://?id=%s\\&download", pkg.apk.Name),
-	)
-
-	stdouterr, err := cmd.CombinedOutput()
-	log.Println(string(stdouterr))
-	if strings.Contains(string(stdouterr), "Activity class {com.aurora.store.debug/com.aurora.store.view.ui.details.AppDetailsActivity} does not exist") {
-		return "", fmt.Errorf("Failed to trigger download for %s: is `com.aurora.store.debug` installed?", pkg.apk.Name)
-	}
+	err = pkg.triggerDownload(device)
 	if err != nil {
-		return "", fmt.Errorf("Failed to trigger download for %s: %s", pkg.apk.Name, stdouterr)
+		return "", err
 	}
 
 	auroraPkgDir := fmt.Sprintf("sdcard/Aurora/Store/Downloads/%s", pkg.apk.Name)
-	// We need to delete first in order to identify download has happened
-	// TODO: Think of a better way.. maybe aurora `touch`es latest version even if it doesn't need to download?
-	cmd = device.AdbCmd("shell", "rm", "-rf", auroraPkgDir)
-	stdouterr, err = cmd.CombinedOutput()
-	log.Println(string(stdouterr))
-	if err != nil {
-		return "", fmt.Errorf("Failed to remove old versions of %s: %s", pkg.apk.Name, err)
-	}
+	downloadMarkers := fmt.Sprintf("%s/.*.download-*", auroraPkgDir)
 
 	var stdout []byte
-	for !strings.Contains(string(stdout), pkg.apk.Name) {
-		time.Sleep(3 * time.Second)
-		cmd = device.AdbCmd("shell", "ls", "sdcard/Aurora/Store/Downloads/")
+	for i := 0; strings.Contains(string(stdout), "download-in-progress") || !strings.Contains(string(stdout), "download-complete"); i++ {
+		if i >= 5 {
+			i = 0
+			err = pkg.triggerDownload(device)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		cmd := device.AdbCmd("shell", "stat", auroraPkgDir, "||", "true")
+		stdouterr, err := cmd.CombinedOutput()
+		if err != nil {
+			return "", err
+		}
+		if strings.Contains(string(stdouterr), "No such file or directory") {
+			continue
+		}
+
+		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
+		cmd = device.AdbCmd("shell", "ls", "-A1t", downloadMarkers)
 		stdout, err = cmd.Output()
 		if err != nil {
 			return "", err
 		}
 	}
 
-	cmd = device.AdbCmd("shell", "ls", auroraPkgDir)
-	stdout, err = cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	versionDownloaded := strings.TrimSpace(string(stdout))
+	re := regexp.MustCompile(`.(?P<version>[0-9]+).download-complete`)
+	matches := re.FindSubmatch(stdout)
+	index := re.SubexpIndex("version")
+	versionDownloaded := string(matches[index])
+	log.Printf("[INFO] Downloaded %s @ %s", pkg.apk.Name, versionDownloaded)
 
-	log.Printf("[INFO] Downloading %s @ %s", pkg.apk.Name, string(versionDownloaded))
-	// Agh, it also creates the directories & APK immediately, while still downloading...
-	// TODO: work out something better than just waiting 'should be long enough'
-	time.Sleep(60 * time.Second)
-
-	cmd = device.AdbCmd("pull", auroraPkgDir, fmt.Sprintf("%s/", apkDir))
-	stdouterr, err = cmd.CombinedOutput()
+	cmd := device.AdbCmd("pull", auroraPkgDir, fmt.Sprintf("%s/", apkDir))
+	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
 		return "", fmt.Errorf("Failed to retrieve %s: %s", pkg.apk.Name, stdouterr)
 	}
 
-	apkPath := fmt.Sprintf("%s/%s/%s/%s.apk", apkDir, pkg.apk.Name, string(versionDownloaded), pkg.apk.Name)
+	apkPath := fmt.Sprintf("%s/%s/%s/%s.apk", apkDir, pkg.apk.Name, versionDownloaded, pkg.apk.Name)
 	pkg.apk.Path = &apkPath
 	return *pkg.apk.Path, nil
 }
