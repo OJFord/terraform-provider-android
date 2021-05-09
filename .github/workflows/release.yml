@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
       - name: Unshallow
         run: git fetch --prune --unshallow
@@ -26,6 +28,9 @@ jobs:
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
+
+      - name: Build
+        run: make terraform-provider-android
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2

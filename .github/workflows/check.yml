@@ -17,6 +17,8 @@ jobs:
 
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
       - name: Get dependencies
         run: |
@@ -27,7 +29,7 @@ jobs:
           fi
 
       - name: Build
-        run: go build -v ./...
+        run: make terraform-provider-android
 
       - name: Vet
         run: go vet
@@ -53,6 +55,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
       - name: Set up Go 1.x
         uses: actions/setup-go@v2
@@ -68,8 +72,8 @@ jobs:
       - name: Check docs updated
         run: |
           curl -L https://github.com/hashicorp/terraform-plugin-docs/releases/download/v0.4.0/tfplugindocs_0.4.0_linux_amd64.zip --output tfplugindocs.zip
-          unzip tfplugindocs.zip tfplugindocs
-          ./tfplugindocs
+          sudo unzip tfplugindocs.zip tfplugindocs -d /usr/local/bin
+          make clean-docs docs
           change="$(git diff)"
           if [ -n "$change" ]; then
             >&2 echo "$change"
