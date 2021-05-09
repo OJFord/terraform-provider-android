@@ -31,8 +31,8 @@ func resourceAndroidApk() *schema.Resource {
 				Type: schema.TypeString,
 			},
 			"method": {
-				Default:     "gplaycli",
-				Description: "Method to use for acquiring the APK. (fdroid, gplaycli).",
+				Default:     "aurora",
+				Description: "Method to use for acquiring the APK. (aurora, fdroid, gplaycli). `\"aurora\"` requires `com.aurora.store.debug`, currently a forked version, but which it can install to bootstrap itself. Aurora is required for multi-APK bundles, i.e. some apps will not work with gplaycli.",
 				Optional:    true,
 				Type:        schema.TypeString,
 			},
@@ -90,7 +90,7 @@ func customiseDiff(d *schema.ResourceDiff, m interface{}) error {
 		return err
 	}
 
-	if _, err = apk.UpdateCache(device.Device); err != nil {
+	if err = apk.UpdateCache(device.Device); err != nil {
 		return err
 	}
 
@@ -119,6 +119,7 @@ func customiseDiff(d *schema.ResourceDiff, m interface{}) error {
 		return err
 	}
 
+	log.Printf("[DEBUG] Diff complete for %s @ %d", d.Get("name").(string), v)
 	return nil
 }
 
@@ -229,12 +230,29 @@ func findDeviceBySerialOrEndpoint(serial string, endpoint string, m Meta) (*Devi
 	return nil, fmt.Errorf("No endpoint or serial specified")
 }
 
-func installApk(device *adb.Device, apk repo.APKAcquirer) error {
-	log.Println("Installing", apk.Name())
-	if err := device.Install(repo.Path(apk)); err != nil {
-		return fmt.Errorf("Failed to install %s to %s: %s", apk.Name(), device.Model, err)
+func installMultiple(device *adb.Device, paths []string) error {
+	// fdroidcl.adb.Device doesn't have an API for `install-multiple`, just `install`
+	log.Printf("[INFO] Installing %v", paths)
+	cmd := device.AdbCmd(append([]string{"install-multiple", "-r"}, paths...)...)
+	stdouterr, err := cmd.CombinedOutput()
+	log.Println(string(stdouterr))
+	return err
+}
+
+func installApk(device *adb.Device, version int, apk repo.APKAcquirer) error {
+	log.Printf("[DEBUG] Requested to install %s", apk.Apk().Name)
+
+	apkPaths, err := apk.GetApkPaths(device, &version)
+	if err != nil {
+		return err
 	}
 
+	log.Printf("[DEBUG] Installing %s", apk.Apk().Name)
+	if err := installMultiple(device, apkPaths); err != nil {
+		return fmt.Errorf("Failed to install %s to %s: %s", apk.Apk().Name, device.Model, err)
+	}
+
+	log.Printf("[INFO] %s installed!", apk.Apk().Name)
 	return nil
 }
 
@@ -247,19 +265,20 @@ func uninstallApk(device *adb.Device, pkg string) error {
 }
 
 func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
-	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+	pkg, serial, endpoint := d.Get("name").(string), d.Get("serial").(string), d.Get("endpoint").(string)
+	log.Printf("[DEBUG] Creating %s on device %s @ %s", pkg, serial, endpoint)
 
 	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
 
-	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
+	apkAcquirer, err := repo.Package(d.Get("method").(string), pkg)
 	if err != nil {
 		return err
 	}
 
-	err = installApk(device.Device, apk_acquirer)
+	err = installApk(device.Device, d.Get("version").(int), apkAcquirer)
 	if err != nil {
 		return err
 	}
@@ -268,7 +287,8 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
-	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+	pkg, serial, endpoint := d.Get("name").(string), d.Get("serial").(string), d.Get("endpoint").(string)
+	log.Printf("[DEBUG] Reading current state of %s on device %s @ %s", pkg, serial, endpoint)
 
 	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
@@ -286,6 +306,7 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Device %s is not ready, in state: %s", serial, stdout)
 	}
 
+	log.Printf("[DEBUG] Listing packages on device %s @ %s", serial, endpoint)
 	var installed map[string]adb.Package
 	if len(device.packages) == 0 {
 		var err error
@@ -296,14 +317,15 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 		device.packages = installed
 	}
 
-	pkg := d.Get("name").(string)
 	if ipkg, ok := installed[pkg]; ok {
+		log.Printf("[INFO] %s installed at version %s (%d)", ipkg.ID, ipkg.VersName, ipkg.VersCode)
 		d.SetId(fmt.Sprint(serial, "-", pkg))
 		d.Set("version", ipkg.VersCode)
 		d.Set("version_name", ipkg.VersName)
 		return nil
 	}
 
+	log.Printf("[INFO] %s not installed", pkg)
 	d.SetId("")
 	d.Set("version", -1)
 	d.Set("version_name", "Not installed")
@@ -311,19 +333,20 @@ func resourceAndroidApkRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
-	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+	pkg, serial, endpoint := d.Get("name").(string), d.Get("serial").(string), d.Get("endpoint").(string)
+	log.Printf("[DEBUG] Updating %s on device %s @ %s", pkg, serial, endpoint)
 
 	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
 
-	apk_acquirer, err := repo.Package(d.Get("method").(string), d.Get("name").(string))
+	apkAcquirer, err := repo.Package(d.Get("method").(string), pkg)
 	if err != nil {
 		return err
 	}
 
-	err = installApk(device.Device, apk_acquirer)
+	err = installApk(device.Device, d.Get("version").(int), apkAcquirer)
 	if err != nil {
 		return err
 	}
@@ -332,14 +355,15 @@ func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceAndroidApkDelete(d *schema.ResourceData, m interface{}) error {
-	serial, endpoint := d.Get("serial").(string), d.Get("endpoint").(string)
+	pkg, serial, endpoint := d.Get("name").(string), d.Get("serial").(string), d.Get("endpoint").(string)
+	log.Printf("[DEBUG] Deleting %s from device %s @ %s", pkg, serial, endpoint)
 
 	device, err := findDeviceBySerialOrEndpoint(serial, endpoint, m.(Meta))
 	if err != nil {
 		return err
 	}
 
-	err = uninstallApk(device.Device, d.Get("name").(string))
+	err = uninstallApk(device.Device, pkg)
 	if err != nil {
 		return err
 	}

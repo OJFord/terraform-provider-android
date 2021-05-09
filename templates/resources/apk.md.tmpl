@@ -13,6 +13,8 @@ description: |-
 
 Currently CRUDing an `android_apk` resource depends on the following binaries in `$PATH`:
 - `adb` (from android-tools)
+
+For `method="gplaycli"`:
 - `gplaycli` (from python-pip: gplaycli)
 
 It is intended to reduce/eliminate these (cf. [GitHub#4](//github.com/OJFord/terraform-provider-android/issues/4)), but for now, they're required (on the machine running `terraform`).

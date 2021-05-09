@@ -10,41 +10,58 @@ import (
 	"strings"
 )
 
-type GPlayCLIPackage string
-
-func (pkg GPlayCLIPackage) Name() string {
-	return string(pkg)
+type GPlayCLIPackage struct {
+	apk *Apk
 }
 
-func (pkg GPlayCLIPackage) Source() string {
-	return "Google Play Store via gplaycli"
+func (pkg GPlayCLIPackage) Apk() *Apk {
+	return pkg.apk
 }
 
-func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) (string, error) {
-	apk_dir, err := xdg.CacheFile("terraform-android/gplaycli")
-	if err != nil {
-		return "", err
+func (pkg GPlayCLIPackage) GetApkPaths(device *adb.Device, _ *int) ([]string, error) {
+	if pkg.Apk().Paths == nil {
+		if err := pkg.UpdateCache(device); err != nil {
+			return nil, err
+		}
 	}
 
+	return pkg.Apk().Paths, nil
+}
+
+func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) error {
+	apkDir, err := xdg.CacheFile("terraform-android/gplaycli")
+	if err != nil {
+		return err
+	}
+
+	err = os.MkdirAll(apkDir, 0775)
+	if err != nil {
+		return err
+	}
+
+	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg.apk.Name)
+	pkg.apk.BasePath = &apkPath
+	pkg.apk.Paths = []string{apkPath}
+
 	cmd := exec.Command("python", "-m", "gplaycli")
-	_, err = os.Stat(fmt.Sprint(apk_dir, "/", pkg, ".apk"))
+	_, err = os.Stat(apkPath)
 	if os.IsNotExist(err) {
-		log.Println("Downloading", pkg)
-		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apk_dir), fmt.Sprint("--download=", pkg))
+		log.Println("[INFO] Downloading", pkg.apk.Name)
+		cmd.Args = append(cmd.Args, fmt.Sprint("--folder=", apkDir), fmt.Sprint("--download=", pkg.apk.Name))
 	} else {
 		log.Println("Updating cached packages")
-		cmd.Args = append(cmd.Args, fmt.Sprint("--update=", apk_dir), "--yes")
+		cmd.Args = append(cmd.Args, fmt.Sprint("--update=", apkDir), "--yes")
 	}
 
 	stdouterr, err := cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if strings.Contains(string(stdouterr), "No module named gplaycli") {
-		return "", fmt.Errorf("gplaycli is not installed (with this environment's `python`)")
+		return fmt.Errorf("gplaycli is not installed (with this environment's `python`)")
 	}
 	if err != nil || strings.Contains(string(stdouterr), "[ERROR]") {
-		return "", fmt.Errorf("Failed to download or update %s: %s", pkg, stdouterr)
+		return fmt.Errorf("Failed to download or update %s: %s", pkg.apk.Name, stdouterr)
 	}
-	log.Println(pkg, "cached")
+	log.Printf("[INFO] %s cached", pkg.apk.Name)
 
-	return fmt.Sprint(apk_dir, "/", pkg, ".apk"), nil
+	return nil
 }

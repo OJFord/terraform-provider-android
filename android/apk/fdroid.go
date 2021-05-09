@@ -14,63 +14,81 @@ import (
 	"os"
 )
 
-type FDroidPackage string
-
-func (pkg FDroidPackage) Name() string {
-	return string(pkg)
+type FDroidPackage struct {
+	apk *Apk
 }
 
-func (pkg FDroidPackage) Source() string {
-	return "F-Droid"
+func (pkg FDroidPackage) Apk() *Apk {
+	return pkg.apk
 }
 
-func (pkg FDroidPackage) UpdateCache(device *adb.Device) (string, error) {
-	jarpath, err := xdg.CacheFile("terraform-android/fdroid/fdroid-index.jar")
-	if err != nil {
-		return "", err
+func (pkg FDroidPackage) GetApkPaths(device *adb.Device, _ *int) ([]string, error) {
+	if pkg.Apk().Paths == nil {
+		if err := pkg.UpdateCache(device); err != nil {
+			return nil, err
+		}
 	}
+
+	return pkg.Apk().Paths, nil
+}
+
+func (pkg FDroidPackage) UpdateCache(device *adb.Device) error {
+	apkDir, err := xdg.CacheFile("terraform-android/fdroid")
+	if err != nil {
+		return err
+	}
+
+	err = os.MkdirAll(apkDir, 0775)
+	if err != nil {
+		return err
+	}
+
+	apkPath := fmt.Sprintf("%s/%s.apk", apkDir, pkg.apk.Name)
+	pkg.apk.BasePath = &apkPath
+	pkg.apk.Paths = []string{apkPath}
+	jarpath := fmt.Sprintf("%s/fdroid-index.jar", apkDir)
 
 	log.Println("Downloading F-Droid index")
 	if err = downloadEtag("https://f-droid.org/repo/index-v1.jar", jarpath, nil); err != nil && err != errNotModified {
-		return "", err
+		return err
 	}
 
 	jar, err := os.Open(jarpath)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	stat, err := jar.Stat()
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	log.Println("Loading F-Droid index")
 	index, err := fdroid.LoadIndexJar(jar, stat.Size(), nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	var apk *fdroid.Apk
 	for _, app := range index.Apps {
-		log.Println("Found", app.PackageName)
-		if app.PackageName == string(pkg) {
+		log.Printf("[DEBUG] Found %s", app.PackageName)
+		if app.PackageName == pkg.apk.Name {
 			if apk = app.SuggestedApk(device); apk == nil {
-				return "", fmt.Errorf("No %s APK found for %s", pkg, device.Model)
+				return fmt.Errorf("No %s APK found for %s", pkg.apk.Name, device.Model)
 			}
 			break
 		}
 	}
 
 	if apk == nil {
-		return "", fmt.Errorf("No such %s app found", pkg)
+		return fmt.Errorf("[INFO] No such %s app found", pkg.apk.Name)
 	}
 
-	if err := downloadEtag(apk.URL(), Path(pkg), apk.Hash); err != nil && err != errNotModified {
-		return "", fmt.Errorf("Failed to download %s: %s", apk.ApkName, err)
+	if err := downloadEtag(apk.URL(), apkPath, apk.Hash); err != nil && err != errNotModified {
+		return fmt.Errorf("[INFO] Failed to download %s: %s", apk.ApkName, err)
 	}
 
-	return Path(pkg), nil
+	return nil
 }
 
 /* Borrowed from github.com/mvdan/fdroidcl/blob/4684bbe535147f80898e1e657bcd3cd253c11ec4/update.go
