@@ -239,15 +239,16 @@ func installMultiple(device *adb.Device, paths []string) error {
 	return err
 }
 
-func installApk(device *adb.Device, apk repo.APKAcquirer) error {
+func installApk(device *adb.Device, version int, apk repo.APKAcquirer) error {
 	log.Printf("[DEBUG] Requested to install %s", apk.Apk().Name)
-	err := apk.UpdateCache(device)
+
+	apkPaths, err := apk.GetApkPaths(device, &version)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("[DEBUG] Installing %s from %s", apk.Apk().Name, *apk.Apk().BasePath)
-	if err := installMultiple(device, apk.Apk().Paths); err != nil {
+	log.Printf("[DEBUG] Installing %s", apk.Apk().Name)
+	if err := installMultiple(device, apkPaths); err != nil {
 		return fmt.Errorf("Failed to install %s to %s: %s", apk.Apk().Name, device.Model, err)
 	}
 
@@ -277,7 +278,7 @@ func resourceAndroidApkCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	err = installApk(device.Device, apkAcquirer)
+	err = installApk(device.Device, d.Get("version").(int), apkAcquirer)
 	if err != nil {
 		return err
 	}
@@ -345,7 +346,7 @@ func resourceAndroidApkUpdate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
-	err = installApk(device.Device, apkAcquirer)
+	err = installApk(device.Device, d.Get("version").(int), apkAcquirer)
 	if err != nil {
 		return err
 	}

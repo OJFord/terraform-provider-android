@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,8 +50,45 @@ func (pkg AuroraPackage) triggerDownload(device *adb.Device) error {
 	return nil
 }
 
+func getCacheDir() (string, error) {
+	dir, err := xdg.CacheFile("terraform-android/aurora")
+	if err != nil {
+		return "", err
+	}
+
+	return dir, nil
+}
+
+func (pkg AuroraPackage) GetApkPaths(device *adb.Device, version *int) ([]string, error) {
+	if pkg.Apk().Paths != nil {
+		return pkg.Apk().Paths, nil
+	}
+
+	if version == nil {
+		return nil, fmt.Errorf("version required")
+	}
+
+	cacheDir, err := getCacheDir()
+	if err != nil {
+		return nil, err
+	}
+
+	pkgDir := fmt.Sprintf("%s/%s/%d", cacheDir, pkg.apk.Name, *version)
+	_, err = os.Stat(pkgDir)
+	if os.IsNotExist(err) {
+		if err = pkg.UpdateCache(device); err != nil {
+			return nil, err
+		}
+	}
+
+	basePath := fmt.Sprintf("%s/%s.apk", pkgDir, pkg.apk.Name)
+	pkg.apk.BasePath = &basePath
+	pkg.apk.Paths, err = filepath.Glob(fmt.Sprintf("%s/*.apk", pkgDir))
+	return pkg.apk.Paths, nil
+}
+
 func (pkg AuroraPackage) UpdateCache(device *adb.Device) error {
-	apkDir, err := xdg.CacheFile("terraform-android/aurora")
+	apkDir, err := getCacheDir()
 	if err != nil {
 		return err
 	}
@@ -103,8 +141,11 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) error {
 	re := regexp.MustCompile(`.(?P<version>[0-9]+).download-complete`)
 	matches := re.FindSubmatch(stdout)
 	index := re.SubexpIndex("version")
-	versionDownloaded := string(matches[index])
-	log.Printf("[INFO] Downloaded %s @ %s", pkg.apk.Name, versionDownloaded)
+	versionDownloaded, err := strconv.Atoi(string(matches[index]))
+	if err != nil {
+		return err
+	}
+	log.Printf("[INFO] Downloaded %s @ %d", pkg.apk.Name, versionDownloaded)
 
 	cmd := device.AdbCmd("pull", auroraPkgDir, fmt.Sprintf("%s/", apkDir))
 	stdouterr, err := cmd.CombinedOutput()
@@ -113,13 +154,8 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) error {
 		return fmt.Errorf("Failed to retrieve %s: %s", pkg.apk.Name, stdouterr)
 	}
 
-	pkgApkDir := fmt.Sprintf("%s/%s/%s", apkDir, pkg.apk.Name, versionDownloaded)
-	pkgBaseApk := fmt.Sprintf("%s/%s.apk", pkgApkDir, pkg.apk.Name)
-	pkg.apk.BasePath = &pkgBaseApk
-	pkg.apk.Paths, err = filepath.Glob(fmt.Sprintf("%s/*.apk", pkgApkDir))
-	if err != nil {
+	if _, err = pkg.GetApkPaths(device, &versionDownloaded); err != nil {
 		return err
 	}
-
 	return nil
 }

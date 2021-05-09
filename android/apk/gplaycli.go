@@ -18,6 +18,16 @@ func (pkg GPlayCLIPackage) Apk() *Apk {
 	return pkg.apk
 }
 
+func (pkg GPlayCLIPackage) GetApkPaths(device *adb.Device, _ *int) ([]string, error) {
+	if pkg.Apk().Paths == nil {
+		if err := pkg.UpdateCache(device); err != nil {
+			return nil, err
+		}
+	}
+
+	return pkg.Apk().Paths, nil
+}
+
 func (pkg GPlayCLIPackage) UpdateCache(device *adb.Device) error {
 	apkDir, err := xdg.CacheFile("terraform-android/gplaycli")
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 type APKAcquirer interface {
 	UpdateCache(*adb.Device) error
+	GetApkPaths(*adb.Device, *int) ([]string, error)
 	Apk() *Apk
 }
 

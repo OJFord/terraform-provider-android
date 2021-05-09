@@ -22,6 +22,16 @@ func (pkg FDroidPackage) Apk() *Apk {
 	return pkg.apk
 }
 
+func (pkg FDroidPackage) GetApkPaths(device *adb.Device, _ *int) ([]string, error) {
+	if pkg.Apk().Paths == nil {
+		if err := pkg.UpdateCache(device); err != nil {
+			return nil, err
+		}
+	}
+
+	return pkg.Apk().Paths, nil
+}
+
 func (pkg FDroidPackage) UpdateCache(device *adb.Device) error {
 	apkDir, err := xdg.CacheFile("terraform-android/fdroid")
 	if err != nil {
