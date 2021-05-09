@@ -64,6 +64,16 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		return "", fmt.Errorf("Failed to trigger download for %s: %s", pkg.apk.Name, stdouterr)
 	}
 
+	auroraPkgDir := fmt.Sprintf("sdcard/Aurora/Store/Downloads/%s", pkg.apk.Name)
+	// We need to delete first in order to identify download has happened
+	// TODO: Think of a better way.. maybe aurora `touch`es latest version even if it doesn't need to download?
+	cmd = device.AdbCmd("shell", "rm", "-rf", auroraPkgDir)
+	stdouterr, err = cmd.CombinedOutput()
+	log.Println(string(stdouterr))
+	if err != nil {
+		return "", fmt.Errorf("Failed to remove old versions of %s: %s", pkg.apk.Name, err)
+	}
+
 	var stdout []byte
 	for !strings.Contains(string(stdout), pkg.apk.Name) {
 		time.Sleep(3 * time.Second)
@@ -74,20 +84,26 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 		}
 	}
 
-	cmd = device.AdbCmd("shell", "ls", fmt.Sprintf("sdcard/Aurora/Store/Downloads/%s", pkg.apk.Name))
-	versionDownloaded, err := cmd.Output()
+	cmd = device.AdbCmd("shell", "ls", auroraPkgDir)
+	stdout, err = cmd.Output()
 	if err != nil {
 		return "", err
 	}
+	versionDownloaded := strings.TrimSpace(string(stdout))
 
-	cmd = device.AdbCmd("pull", fmt.Sprintf("sdcard/Aurora/Store/Downloads/%s/%s", pkg.apk.Name, versionDownloaded), fmt.Sprintf("%s/%s/", apkDir, pkg.apk.Name))
+	log.Printf("[INFO] Downloading %s @ %s", pkg.apk.Name, string(versionDownloaded))
+	// Agh, it also creates the directories & APK immediately, while still downloading...
+	// TODO: work out something better than just waiting 'should be long enough'
+	time.Sleep(60 * time.Second)
+
+	cmd = device.AdbCmd("pull", auroraPkgDir, fmt.Sprintf("%s/", apkDir))
 	stdouterr, err = cmd.CombinedOutput()
 	log.Println(string(stdouterr))
 	if err != nil {
 		return "", fmt.Errorf("Failed to retrieve %s: %s", pkg.apk.Name, stdouterr)
 	}
 
-	apkPath := fmt.Sprintf("%s/%s/%s/%s.apk", apkDir, pkg.apk.Name, versionDownloaded, pkg.apk.Name)
+	apkPath := fmt.Sprintf("%s/%s/%s/%s.apk", apkDir, pkg.apk.Name, string(versionDownloaded), pkg.apk.Name)
 	pkg.apk.Path = &apkPath
 	return *pkg.apk.Path, nil
 }
