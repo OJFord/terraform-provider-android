@@ -79,26 +79,18 @@ func (pkg AuroraPackage) UpdateCache(device *adb.Device) (string, error) {
 	downloadMarkers := fmt.Sprintf("%s/.*.download-*", auroraPkgDir)
 
 	var stdout []byte
-	for i := 0; strings.Contains(string(stdout), "download-in-progress") || !strings.Contains(string(stdout), "download-complete"); i++ {
-		if i >= 5 {
+	for i := 2; strings.Contains(string(stdout), "download-in-progress") || !strings.Contains(string(stdout), "download-complete"); i++ {
+		if i >= 6 {
 			i = 0
 			err = pkg.triggerDownload(device)
 			if err != nil {
 				return "", err
 			}
 		}
-
-		cmd := device.AdbCmd("shell", "stat", auroraPkgDir, "||", "true")
-		stdouterr, err := cmd.CombinedOutput()
-		if err != nil {
-			return "", err
-		}
-		if strings.Contains(string(stdouterr), "No such file or directory") {
-			continue
-		}
-
 		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
-		cmd = device.AdbCmd("shell", "ls", "-A1t", downloadMarkers)
+
+		// || true to handle dir not existing, or no download markers existing yet
+		cmd := device.AdbCmd("shell", "ls", "-A1t", downloadMarkers, "||", "true")
 		stdout, err = cmd.Output()
 		if err != nil {
 			return "", err
